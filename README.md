@@ -4,11 +4,11 @@
 
 ## Каталоги
 
-| Каталог | Сценарий | Стек |
-| --- | --- | --- |
-| `pipeline_anomaly` | Мини-ETL + детект аномалий | Python 3.11, ClickHouse, scikit-learn |
-| `feature_store_ml` | Feature store и инференс | Python 3.11, LightGBM, ClickHouse |
-| `data_quality_monitor` | Сервис контроля качества данных | Python 3.11, FastAPI, pydantic |
+| Каталог                | Сценарий                        | Стек                                  |
+|------------------------|---------------------------------|---------------------------------------|
+| `pipeline_anomaly`     | Мини-ETL + детект аномалий      | Python 3.11, ClickHouse, scikit-learn |
+| `feature_store_ml`     | Feature store и инференс        | Python 3.11, LightGBM, ClickHouse     |
+| `data_quality_monitor` | Сервис контроля качества данных | Python 3.11, FastAPI, pydantic        |
 
 Каждый модуль содержит `README.md` с детальным гайдлайном по запуску и инфраструктуре.
 
@@ -18,55 +18,28 @@
 
 ```bash
 corepack enable
-yarn set version 4.1.1
+corepack prepare yarn@stable --activate
 yarn install
 ```
 
 Основные команды гоняем через `yarn nx run <project>:<target>`:
 
-| Проект | Таргет | Что делает |
-| --- | --- | --- |
-| `pipeline-anomaly` | `install` | Ставит poetry-зависимости |
-|  | `infra-up` / `infra-down` | Поднимает / тушит ClickHouse |
-|  | `pipeline` | Прогоняет ETL и детект аномалий |
-|  | `test` | pytest для генераторов и пайплайна |
-| `feature-store-ml` | `install` | Подтягивает окружение для feature store |
-|  | `infra-up` / `infra-down` | Управляет ClickHouse витринами |
-|  | `features` | Материализует фичи |
-|  | `train` | Обучает модель |
-|  | `serve` | Заливает предикты |
-|  | `test` | pytest по registry и пайплайну |
-| `data-quality-monitor` | `install` | Ставит сервис проверки качества |
-|  | `infra-up` / `infra-down` | Поднимает ClickHouse + метрики |
-|  | `api` | Локальный FastAPI |
-|  | `run-checks` | Гоняет проверки качества |
-|  | `test` | pytest для правил |
+| Проект                 | Таргет                    | Что делает                              |
+|------------------------|---------------------------|-----------------------------------------|
+| `pipeline-anomaly`     | `install`                 | Ставит poetry-зависимости               |
+|                        | `infra-up` / `infra-down` | Поднимает / тушит ClickHouse            |
+|                        | `pipeline`                | Прогоняет ETL и детект аномалий         |
+|                        | `test`                    | pytest для генераторов и пайплайна      |
+| `feature-store-ml`     | `install`                 | Подтягивает окружение для feature store |
+|                        | `infra-up` / `infra-down` | Управляет ClickHouse витринами          |
+|                        | `features`                | Материализует фичи                      |
+|                        | `train`                   | Обучает модель                          |
+|                        | `serve`                   | Заливает предикты                       |
+|                        | `test`                    | pytest по registry и пайплайну          |
+| `data-quality-monitor` | `install`                 | Ставит сервис проверки качества         |
+|                        | `infra-up` / `infra-down` | Поднимает ClickHouse + метрики          |
+|                        | `api`                     | Локальный FastAPI                       |
+|                        | `run-checks`              | Гоняет проверки качества                |
+|                        | `test`                    | pytest для правил                       |
 
 Nx просто дергает `make` внутри каждого модуля, так что можно продолжать пользоваться локальными Makefile-ами, если Nx не нужен.
-
-Три независимых сэндбокса под разные типы тестовых. Все решения держим в отдельных модулях c DDD/hex-структурой, воспроизводимость через `make` и Docker.
-
-## Каталоги
-
-| Каталог | Сценарий | Стек |
-| --- | --- | --- |
-| `pipeline_anomaly` | Мини-ETL + детект аномалий | Python 3.11, ClickHouse, scikit-learn |
-
-## Nx-монорепа
-
-Модули завёрнуты в общий Nx-воркспейс для бесшовного управления пайплайнами. Чтобы подхватить зависимости, включаем Corepack и тянем Yarn 4:
-
-```bash
-corepack enable
-yarn set version 4.1.1
-yarn install
-```
-
-Основные команды гоняем через `yarn nx run <project>:<target>`:
-
-| Проект | Таргет | Что делает |
-| --- | --- | --- |
-| `pipeline-anomaly` | `install` | Ставит poetry-зависимости |
-|  | `infra-up` / `infra-down` | Поднимает / тушит ClickHouse |
-|  | `pipeline` | Прогоняет ETL и детект аномалий |
-|  | `test` | pytest для генераторов и пайплайна |
