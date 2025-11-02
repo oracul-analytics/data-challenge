@@ -1,0 +1,64 @@
+{
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "name": "feature-store-ml",
+  "projectType": "application",
+  "root": "feature_store_ml",
+  "sourceRoot": "feature_store_ml/src",
+  "targets": {
+    "install": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "make install",
+        "cwd": "feature_store_ml"
+      }
+    },
+    "infra-up": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "make infra-up",
+        "cwd": "feature_store_ml"
+      },
+      "cache": false
+    },
+    "infra-down": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "make infra-down",
+        "cwd": "feature_store_ml"
+      },
+      "cache": false
+    },
+    "features": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "make features",
+        "cwd": "feature_store_ml"
+      },
+      "cache": false
+    },
+    "train": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "make train",
+        "cwd": "feature_store_ml"
+      },
+      "cache": false
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "make serve",
+        "cwd": "feature_store_ml"
+      },
+      "cache": false
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "make test",
+        "cwd": "feature_store_ml"
+      }
+    }
+  },
+  "tags": ["feature-store", "ml"]
+}

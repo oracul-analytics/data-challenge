@@ -1,0 +1,18 @@
+version: "3.9"
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    container_name: feature-store-clickhouse
+    ports:
+      - "8124:8123"
+      - "9001:9000"
+    environment:
+      CLICKHOUSE_DB: feature_store
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - fs_clickhouse_data:/var/lib/clickhouse
+      - fs_clickhouse_logs:/var/log/clickhouse-server
+volumes:
+  fs_clickhouse_data:
+  fs_clickhouse_logs:
