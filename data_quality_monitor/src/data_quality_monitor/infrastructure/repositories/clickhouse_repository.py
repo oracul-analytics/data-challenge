@@ -54,3 +54,33 @@ class ClickHouseRepository:
         except Exception as e:
             logger.error("Failed to list reports: {}", e)
             return pd.DataFrame()
+        
+    def save_report(self, report: QualityReport) -> None:
+        self.client.command("""
+            CREATE TABLE IF NOT EXISTS dq_reports (
+                table_name String,
+                rule String,
+                passed UInt8,
+                details String,
+                generated_at DateTime
+            ) ENGINE = MergeTree()
+            ORDER BY generated_at
+        """)
+
+        if not report.results:
+            return
+
+        import json
+        import pandas as pd
+        rows = []
+        for result in report.results:
+            rows.append({
+                "table_name": str(getattr(report, "table", "unknown")),
+                "rule": str(result.rule),
+                "passed": int(result.passed),
+                "details": json.dumps(result.details, default=float),
+                "generated_at": pd.Timestamp(report.generated_at),
+            })
+
+        df = pd.DataFrame(rows)
+        self.client.insert("dq_reports", df)
