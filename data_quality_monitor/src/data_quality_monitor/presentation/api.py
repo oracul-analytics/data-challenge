@@ -7,11 +7,11 @@ from prometheus_client import CollectorRegistry, Counter, generate_latest
 from starlette.responses import PlainTextResponse
 
 from data_quality_monitor.application.services.runner import QualityRunner
-from data_quality_monitor.infrastructure.clients.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.config import RuleConfig
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import ClickHouseRepository
 
-CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "config" / "rules.yaml"
+# Путь к конфигу от корня проекта
+CONFIG_PATH = Path(__file__).resolve().parent.parent.parent.parent / "config" / "rules.yaml"
 
 app = FastAPI(title="Data Quality Monitor")
 registry = CollectorRegistry()
@@ -21,7 +21,16 @@ run_counter = Counter("dq_runs_total", "DQ runs", registry=registry)
 @app.on_event("startup")
 def bootstrap() -> None:
     app.state.config = RuleConfig.load(CONFIG_PATH)
-    repository = ClickHouseRepository(factory=ClickHouseFactory(app.state.config.clickhouse))
+
+    cfg = app.state.config.clickhouse
+    repository = ClickHouseRepository(
+        host=cfg.host,
+        port=cfg.port,
+        username=cfg.username,
+        password=cfg.password,
+        database=cfg.database,
+    )
+
     app.state.runner = QualityRunner(repository)
 
 
