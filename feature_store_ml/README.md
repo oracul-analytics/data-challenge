@@ -12,10 +12,10 @@
 ## Запуск
 
 ```bash
-make infra-up           # ClickHouse (совместно с sandbox #1 можно юзать другой compose-порт)
-make features           # материализуем фичи
-make train              # тренируем модель
-make serve              # пишем предсказания в витрину
+make infra-up
+make features
+make train
+make serve
 ```
 
 Параметры лежат в `config/store.yaml`.

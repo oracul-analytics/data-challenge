@@ -1,0 +1,37 @@
+version: "3.9"
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    container_name: dq-clickhouse
+    ports:
+      - "8125:8123"
+      - "9002:9000"
+    environment:
+      CLICKHOUSE_DB: dq
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - dq_clickhouse_data:/var/lib/clickhouse
+      - dq_clickhouse_logs:/var/log/clickhouse-server
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v23.3.10
+    container_name: dq-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp
+      - "1"
+      - --reserve-memory
+      - 0M
+      - --overprovisioned
+      - --node-id
+      - "0"
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:39092
+      - --advertise-kafka-addr
+      - PLAINTEXT://dq-redpanda:29092,OUTSIDE://localhost:39092
+    ports:
+      - "39092:39092"
+volumes:
+  dq_clickhouse_data:
+  dq_clickhouse_logs:

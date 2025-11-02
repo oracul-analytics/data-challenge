@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "data-quality-monitor"
+version = "0.1.0"
+description = "Data quality monitoring service"
+authors = ["Andrew Ghostuhin <me@torinasakura.name>"]
+packages = [{include = "data_quality_monitor", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.111"
+uvicorn = {version = "^0.30", extras = ["standard"]}
+pandas = "^2.2"
+numpy = "^1.26"
+pyyaml = "^6.0"
+clickhouse-connect = "^0.7.6"
+loguru = "^0.7"
+prometheus-client = "^0.20"
+typer = {version = "^0.12", extras = ["all"]}
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

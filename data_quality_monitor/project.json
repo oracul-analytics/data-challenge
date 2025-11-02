@@ -1,0 +1,56 @@
+{
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "name": "data-quality-monitor",
+  "projectType": "application",
+  "root": "data_quality_monitor",
+  "sourceRoot": "data_quality_monitor/src",
+  "targets": {
+    "install": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "make install",
+        "cwd": "data_quality_monitor"
+      }
+    },
+    "infra-up": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "make infra-up",
+        "cwd": "data_quality_monitor"
+      },
+      "cache": false
+    },
+    "infra-down": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "make infra-down",
+        "cwd": "data_quality_monitor"
+      },
+      "cache": false
+    },
+    "api": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "make api",
+        "cwd": "data_quality_monitor"
+      },
+      "cache": false
+    },
+    "run-checks": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "make run-checks",
+        "cwd": "data_quality_monitor"
+      },
+      "cache": false
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "make test",
+        "cwd": "data_quality_monitor"
+      }
+    }
+  },
+  "tags": ["data-quality", "monitoring"]
+}
