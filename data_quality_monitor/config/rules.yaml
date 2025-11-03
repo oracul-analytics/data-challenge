@@ -1,6 +1,6 @@
 clickhouse:
   host: localhost
-  port: 8123
+  port: 8124
   database: dq
   username: default
   password: ""

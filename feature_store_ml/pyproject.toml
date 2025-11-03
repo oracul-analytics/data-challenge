@@ -15,7 +15,9 @@ scikit-learn = "^1.5"
 pyyaml = "^6.0"
 joblib = "^1.4"
 loguru = "^0.7"
-typer = {version = "^0.12", extras = ["all"]}
+typer = "^0.20.0"
+click = "^8.3.0"
+rich = "^14.2.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2"
