@@ -4,14 +4,12 @@ import pandas as pd
 from clickhouse_connect import get_client
 from loguru import logger
 
-from data_quality_monitor.domain.models.result import QualityReport
-
 
 class ClickHouseRepository:
     def __init__(
         self,
         host: str = "127.0.0.1",
-        port: int = 8123,  # HTTP порт по умолчанию
+        port: int = 8123,
         username: str = "default",
         password: str = "",
         database: str = "dq",
@@ -27,37 +25,8 @@ class ClickHouseRepository:
 
     def ensure_schema(self) -> None:
         self.client.command(f"CREATE DATABASE IF NOT EXISTS {self.database}")
-        logger.info("Ensured database {}", self.database)
-
-    def fetch_table(self, table_name: str) -> pd.DataFrame:
-        try:
-            df = self.client.query_df(f"SELECT * FROM {self.database}.{table_name}")
-            return df
-        except Exception as e:
-            logger.error("Failed to fetch table {}: {}", table_name, e)
-            return pd.DataFrame()
-
-    def save_report(self, report: QualityReport) -> None:
-        for result in report.results:
-            logger.info(
-                "Table: {}, Rule: {}, Passed: {}, Details: {}",
-                getattr(report, "table", "unknown"),
-                result.rule,
-                result.passed,
-                result.details,
-            )
-
-    def list_reports(self) -> pd.DataFrame:
-        try:
-            df = self.client.query_df(f"SELECT * FROM {self.database}.dq_reports")
-            return df
-        except Exception as e:
-            logger.error("Failed to list reports: {}", e)
-            return pd.DataFrame()
-        
-    def save_report(self, report: QualityReport) -> None:
-        self.client.command("""
-            CREATE TABLE IF NOT EXISTS dq_reports (
+        self.client.command(f"""
+            CREATE TABLE IF NOT EXISTS {self.database}.dq_reports (
                 table_name String,
                 rule String,
                 passed UInt8,
@@ -66,21 +35,35 @@ class ClickHouseRepository:
             ) ENGINE = MergeTree()
             ORDER BY generated_at
         """)
+        logger.info("Schema ensured")
 
-        if not report.results:
-            return
+    def save_from_message(self, message: dict) -> None:
+        try:
+            row = {
+                "table_name": str(message["table_name"]),
+                "rule": str(message["rule"]),
+                "passed": int(message["passed"]),
+                "details": str(message["details"]) if isinstance(message["details"], str) else str(message["details"]),
+                "generated_at": pd.Timestamp(message["generated_at"]),
+            }
+            
+            df = pd.DataFrame([row])
+            self.client.insert(f"{self.database}.dq_reports", df)
+            logger.info("Saved: table={}, rule={}", row["table_name"], row["rule"])
+            
+        except Exception as e:
+            logger.error("Failed to save: {}", e)
 
-        import json
-        import pandas as pd
-        rows = []
-        for result in report.results:
-            rows.append({
-                "table_name": str(getattr(report, "table", "unknown")),
-                "rule": str(result.rule),
-                "passed": int(result.passed),
-                "details": json.dumps(result.details, default=float),
-                "generated_at": pd.Timestamp(report.generated_at),
-            })
+    def fetch_table(self, table_name: str) -> pd.DataFrame:
+        try:
+            return self.client.query_df(f"SELECT * FROM {self.database}.{table_name}")
+        except Exception as e:
+            logger.error("Failed to fetch table {}: {}", table_name, e)
+            return pd.DataFrame()
 
-        df = pd.DataFrame(rows)
-        self.client.insert("dq_reports", df)
+    def list_reports(self, limit: int = 100) -> pd.DataFrame:
+        try:
+            return self.client.query_df(f"SELECT * FROM {self.database}.dq_reports ORDER BY generated_at DESC LIMIT {limit}")
+        except Exception as e:
+            logger.error("Failed to list reports: {}", e)
+            return pd.DataFrame()

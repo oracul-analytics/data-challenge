@@ -2,6 +2,8 @@ from confluent_kafka import Producer
 import json
 from loguru import logger
 from data_quality_monitor.domain.models.result import QualityReport
+import numpy as np
+
 
 class RedpandaProducer:
     def __init__(self, bootstrap_servers: str = "localhost:39092", topic: str = "dq_reports"):
@@ -14,24 +16,41 @@ class RedpandaProducer:
         else:
             logger.info("Message delivered to {} [{}]", msg.topic(), msg.partition())
 
+    @staticmethod
+    def _to_serializable(obj):
+        if isinstance(obj, (np.bool_, bool)):
+            return bool(obj)
+        if isinstance(obj, (np.integer, int)):
+            return int(obj)
+        if isinstance(obj, (np.floating, float)):
+            return float(obj)
+        return str(obj)
+
     def send_report(self, report: QualityReport):
         if not report.results:
-            logger.warning("No results to send for report: {}", getattr(report, "table", "unknown"))
+            logger.warning("No results to send for report")
             return
 
-        # Отправляем каждый результат как отдельное сообщение
+        table_name = report.rule.table if hasattr(report, "rule") and hasattr(report.rule, "table") else "unknown"
+
         for result in report.results:
             payload = {
-                "table_name": getattr(report, "table", "unknown"),
+                "table_name": table_name,
                 "rule": result.rule,
-                "passed": result.passed,
+                "passed": bool(result.passed),
                 "details": result.details,
                 "generated_at": report.generated_at.isoformat(),
             }
-            self.producer.produce(
-                self.topic,
-                key=str(payload["table_name"]),
-                value=json.dumps(payload),
-                callback=self.delivery_report
-            )
+
+            try:
+                self.producer.produce(
+                    self.topic,
+                    key=str(table_name),
+                    value=json.dumps(payload, default=self._to_serializable),
+                    callback=self.delivery_report
+                )
+            except Exception as e:
+                logger.error("Failed to produce message to Redpanda: {}", e)
+
         self.producer.flush()
+        logger.info("Report sent to Redpanda for table {}", table_name)
