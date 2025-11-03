@@ -15,7 +15,6 @@ class ModelArtifact:
     created_at: datetime = field(default_factory=datetime.now)
     
     def __post_init__(self) -> None:
-        """Validate artifact."""
         if not isinstance(self.model_path, Path):
             object.__setattr__(self, "model_path", Path(self.model_path))
         

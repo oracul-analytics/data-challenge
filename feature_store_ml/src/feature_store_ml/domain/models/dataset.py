@@ -14,7 +14,6 @@ class FeatureDataset:
     feature_names: Sequence[str] | None = None
     
     def __post_init__(self) -> None:
-        """Validate dataset consistency."""
         if self.labels is not None and len(self.features) != len(self.labels):
             raise ValueError(
                 f"Features and labels length mismatch: {len(self.features)} != {len(self.labels)}"

@@ -17,4 +17,3 @@ class Feature:
     
     def __repr__(self) -> str:
         return f"Feature(name='{self.name}')"
-    

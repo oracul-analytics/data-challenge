@@ -36,7 +36,7 @@ class LightGBMTrainer:
             "learning_rate": self._config.learning_rate,
             "max_depth": self._config.max_depth,
             "metric": "auc",
-            "verbosity": -1,  # Отключить логи
+            "verbosity": -1,
         }
         
         booster = lgb.train(
@@ -44,7 +44,7 @@ class LightGBMTrainer:
             train_set=train_set,
             num_boost_round=self._config.num_boost_round,
             valid_sets=[valid_set],
-            callbacks=[lgb.log_evaluation(period=0)],  # ← Вместо verbose_eval
+            callbacks=[lgb.log_evaluation(period=0)],
         )
         
         predictions = booster.predict(X_test)

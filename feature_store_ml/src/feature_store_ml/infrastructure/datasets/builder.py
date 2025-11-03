@@ -16,6 +16,6 @@ class DatasetBuilder:
         feature_cols = list(self._registry.feature_names)
         return FeatureDataset(
             features=features[feature_cols], 
-            labels=target,  # ← Было target, должно быть labels
+            labels=target,
             feature_names=feature_cols
         )
