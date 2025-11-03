@@ -13,4 +13,9 @@ class DatasetBuilder:
     def build(self, frame: pd.DataFrame) -> FeatureDataset:
         features = self._registry.compute(frame)
         target = (frame["label"] > 0).astype(int)
-        return FeatureDataset(features=features[self._registry.feature_names], target=target)
+        feature_cols = list(self._registry.feature_names)
+        return FeatureDataset(
+            features=features[feature_cols], 
+            labels=target,  # ← Было target, должно быть labels
+            feature_names=feature_cols
+        )

@@ -21,37 +21,50 @@ class LightGBMTrainer:
 
     def train(self, dataset: FeatureDataset) -> ModelArtifact:
         X_train, X_test, y_train, y_test = train_test_split(
-            dataset.features,
-            dataset.target,
+            dataset.X,
+            dataset.y,
             test_size=self._config.test_size,
             random_state=self._config.random_state,
-            stratify=dataset.target,
+            stratify=dataset.y,
         )
+        
         train_set = lgb.Dataset(X_train, label=y_train)
-        valid_set = lgb.Dataset(X_test, label=y_test)
+        valid_set = lgb.Dataset(X_test, label=y_test, reference=train_set)
+        
         params = {
             "objective": "binary",
             "learning_rate": self._config.learning_rate,
             "max_depth": self._config.max_depth,
-            "metric": ["auc"],
+            "metric": "auc",
+            "verbosity": -1,  # Отключить логи
         }
+        
         booster = lgb.train(
             params=params,
             train_set=train_set,
             num_boost_round=self._config.num_boost_round,
             valid_sets=[valid_set],
-            verbose_eval=False,
+            callbacks=[lgb.log_evaluation(period=0)],  # ← Вместо verbose_eval
         )
+        
         predictions = booster.predict(X_test)
         auc = roc_auc_score(y_test, predictions)
+        
         model_path = self._artifacts_dir / "lightgbm_model.pkl"
         joblib.dump(booster, model_path)
+        
         metadata = {
             "auc": auc,
-            "features": list(dataset.features.columns),
+            "features": list(dataset.X.columns),
+            "num_train": len(X_train),
+            "num_test": len(X_test),
         }
         joblib.dump(metadata, self._artifacts_dir / "metadata.pkl")
-        return ModelArtifact(model_path=model_path, feature_names=tuple(dataset.features.columns))
+        
+        return ModelArtifact(
+            model_path=model_path, 
+            feature_names=tuple(dataset.X.columns)
+        )
 
     def load(self) -> tuple[lgb.Booster, dict[str, object]]:
         model = joblib.load(self._artifacts_dir / "lightgbm_model.pkl")
