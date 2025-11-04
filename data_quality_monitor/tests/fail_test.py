@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from data_quality_monitor.infrastructure.rules import engine
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import ClickHouseRepository
-from data_quality_monitor.infrastructure.clients.clickhouse import ClickHouseFactory
+from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.config import RuleConfig
 from loguru import logger
 import sys

@@ -3,8 +3,9 @@ from __future__ import annotations
 import pandas as pd
 from loguru import logger
 
-from data_quality_monitor.infrastructure.clients.clickhouse import ClickHouseFactory
+from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
 from data_quality_monitor.domain.models.result import QualityReport
+
 
 class ClickHouseRepository:
     def __init__(self, factory: ClickHouseFactory) -> None:
@@ -14,7 +15,7 @@ class ClickHouseRepository:
 
     def ensure_schema(self) -> None:
         self.client.command(f"CREATE DATABASE IF NOT EXISTS {self.database}")
-        
+
         self.client.command(f"""
             CREATE TABLE IF NOT EXISTS {self.database}.events (
                 event_id UInt64,
@@ -23,7 +24,7 @@ class ClickHouseRepository:
             ) ENGINE = MergeTree()
             ORDER BY ts
         """)
-        
+
         self.client.command(f"""
             CREATE TABLE IF NOT EXISTS {self.database}.reports (
                 table_name String,
@@ -34,7 +35,7 @@ class ClickHouseRepository:
             ) ENGINE = MergeTree()
             ORDER BY generated_at
         """)
-        
+
         logger.info("Schema ensured (events and reports tables created)")
 
     def save_report(self, report: QualityReport) -> None:
@@ -49,12 +50,14 @@ class ClickHouseRepository:
                     "generated_at": report.generated_at,
                 }
                 rows.append(row)
-            
+
             if rows:
                 df = pd.DataFrame(rows)
                 self.client.insert(f"{self.database}.reports", df)
-                logger.info("Saved report for table={} with {} results", report.table, len(rows))
-                
+                logger.info(
+                    "Saved report for table={} with {} results", report.table, len(rows)
+                )
+
         except Exception as e:
             logger.error("Failed to save report for table={}: {}", report.table, e)
 
@@ -71,14 +74,18 @@ class ClickHouseRepository:
                         "generated_at": report.generated_at,
                     }
                     all_rows.append(row)
-            
+
             if all_rows:
                 df = pd.DataFrame(all_rows)
                 self.client.insert(f"{self.database}.reports", df)
-                logger.info("Saved {} reports with {} total results", len(reports), len(all_rows))
+                logger.info(
+                    "Saved {} reports with {} total results",
+                    len(reports),
+                    len(all_rows),
+                )
             else:
                 logger.warning("No results to save")
-                
+
         except Exception as e:
             logger.error("Failed to save reports: {}", e)
 
@@ -88,14 +95,18 @@ class ClickHouseRepository:
                 "table_name": str(message["table_name"]),
                 "rule": str(message["rule"]),
                 "passed": int(message["passed"]),
-                "details": str(message["details"]) if isinstance(message["details"], str) else str(message["details"]),
+                "details": str(message["details"])
+                if isinstance(message["details"], str)
+                else str(message["details"]),
                 "generated_at": pd.Timestamp(message["generated_at"]),
             }
-            
+
             df = pd.DataFrame([row])
             self.client.insert(f"{self.database}.reports", df)
-            logger.info("Saved from Kafka: table={}, rule={}", row["table_name"], row["rule"])
-            
+            logger.info(
+                "Saved from Kafka: table={}, rule={}", row["table_name"], row["rule"]
+            )
+
         except Exception as e:
             logger.error("Failed to save from Kafka: {}", e)
 
@@ -109,11 +120,11 @@ class ClickHouseRepository:
 
     def fetch_table(self, table_name: str) -> pd.DataFrame:
         try:
-            if '.' in table_name:
+            if "." in table_name:
                 full_table_name = table_name
             else:
                 full_table_name = f"{self.database}.{table_name}"
-            
+
             return self.client.query_df(f"SELECT * FROM {full_table_name}")
         except Exception as e:
             logger.error("Failed to fetch table {}: {}", table_name, e)

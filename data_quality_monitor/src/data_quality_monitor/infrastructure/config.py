@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import yaml
 
@@ -19,8 +18,14 @@ class ClickHouseConfig:
 
 
 @dataclass(slots=True)
+class KafkaConfig:
+    bootstrap_servers: str
+
+
+@dataclass(slots=True)
 class RuleConfig:
     clickhouse: ClickHouseConfig
+    kafka: KafkaConfig
     rules: tuple[TableRule, ...]
 
     @classmethod
@@ -33,8 +38,11 @@ class RuleConfig:
                 Expectation(type=exp.pop("type"), params=exp)
                 for exp in item["expectations"]
             ]
-            rules.append(TableRule(table=item["table"], expectations=tuple(expectations)))
+            rules.append(
+                TableRule(table=item["table"], expectations=tuple(expectations))
+            )
         return cls(
             clickhouse=ClickHouseConfig(**raw["clickhouse"]),
+            kafka=KafkaConfig(**raw["kafka"]),
             rules=tuple(rules),
         )

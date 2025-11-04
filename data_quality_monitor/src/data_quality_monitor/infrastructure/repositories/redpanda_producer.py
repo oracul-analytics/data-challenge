@@ -48,10 +48,12 @@ class RedpandaProducer:
                     self.topic,
                     key=str(table_name),
                     value=json.dumps(payload, default=self._to_serializable),
-                    callback=self.delivery_report
+                    callback=self.delivery_report,
                 )
             except Exception as e:
                 logger.error("Failed to produce message to Redpanda: {}", e)
 
         self.producer.flush()
-        logger.info("Report sent to Redpanda for table {} on topic {}", table_name, self.topic)
+        logger.info(
+            "Report sent to Redpanda for table {} on topic {}", table_name, self.topic
+        )

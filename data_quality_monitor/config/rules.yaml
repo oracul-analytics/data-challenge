@@ -5,6 +5,9 @@ clickhouse:
   username: default
   password: ""
 
+kafka:
+  bootstrap_servers: localhost:39092
+
 rules:
   - table: dq.events
     expectations:
