@@ -30,6 +30,8 @@ class AggregateCollection:
                 "window_end": aggregate.window_end.isoformat(),
             }
             if aggregate.extra:
-                row.update({f"extra_{key}": val for key, val in aggregate.extra.items()})
+                row.update(
+                    {f"extra_{key}": val for key, val in aggregate.extra.items()}
+                )
             payload.append(row)
         return payload

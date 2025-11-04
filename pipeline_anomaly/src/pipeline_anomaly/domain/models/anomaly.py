@@ -11,6 +11,8 @@ class Anomaly:
     score: float
     severity: float
     description: str
+    window_start: datetime
+    window_end: datetime
 
 
 @dataclass(frozen=True, slots=True)

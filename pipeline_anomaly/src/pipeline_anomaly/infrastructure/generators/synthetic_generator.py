@@ -31,14 +31,20 @@ class SyntheticDatasetGenerator:
         current_time = datetime.utcnow()
         while remaining > 0:
             batch_size = min(self._config.batch_size, remaining)
-            timestamps = [current_time - timedelta(seconds=i) for i in range(batch_size)]
+            timestamps = [
+                current_time - timedelta(seconds=i) for i in range(batch_size)
+            ]
             entity_ids = self._random.integers(1, 1_000_000, size=batch_size)
             base_values = self._random.normal(loc=100.0, scale=15.0, size=batch_size)
             attribute = self._random.uniform(0, 1, size=batch_size)
 
             anomalies_count = max(1, int(batch_size * self._config.anomaly_ratio))
-            anomaly_indices = self._random.choice(batch_size, size=anomalies_count, replace=False)
-            base_values[anomaly_indices] *= self._random.uniform(2, 5, size=anomalies_count)
+            anomaly_indices = self._random.choice(
+                batch_size, size=anomalies_count, replace=False
+            )
+            base_values[anomaly_indices] *= self._random.uniform(
+                2, 5, size=anomalies_count
+            )
 
             dataframe = pd.DataFrame(
                 {
