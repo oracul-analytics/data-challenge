@@ -2,22 +2,25 @@ import pandas as pd
 from datetime import datetime, timedelta
 from pathlib import Path
 from data_quality_monitor.infrastructure.rules import engine
-from data_quality_monitor.infrastructure.repositories.clickhouse_repository import ClickHouseRepository
+from data_quality_monitor.infrastructure.repositories.clickhouse_repository import (
+    ClickHouseRepository,
+)
 from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.config import RuleConfig
 from loguru import logger
 import sys
 
-
 logger.remove()
 logger.add(sys.stderr, level="INFO")
 
-CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "rules.yaml"
+CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
+INFRA_PATH = CONFIG_DIR / "infrastructure.yaml"
+RULES_PATH = CONFIG_DIR / "rules.yaml"
 
 
 def test_rules_yaml_failures():
-    config = RuleConfig.load(CONFIG_PATH)
-    logger.info("✓ Loaded config from {}", CONFIG_PATH)
+    config = RuleConfig.load(INFRA_PATH, RULES_PATH)
+    logger.info("✓ Loaded config from {} and {}", INFRA_PATH, RULES_PATH)
 
     factory = ClickHouseFactory(config.clickhouse)
     repo = ClickHouseRepository(factory=factory)
@@ -30,20 +33,24 @@ def test_rules_yaml_failures():
     except Exception as e:
         logger.warning("Could not truncate tables: {}", e)
 
+    # Insert faulty events to trigger rule violations
     num_rows = 1000
     start_time = datetime(2025, 11, 4, 0, 0, 0)
 
-    events_data = pd.DataFrame({
-        "event_id": [i % 100 for i in range(num_rows)],
-        "value": [
-            None if i % 200 == 0 else (i % 1200) - 100
-            for i in range(num_rows)
-        ],
-        "ts": [start_time + timedelta(seconds=i) for i in range(num_rows)]
-    })
+    events_data = pd.DataFrame(
+        {
+            "event_id": [i % 100 for i in range(num_rows)],
+            "value": [
+                None if i % 200 == 0 else (i % 1200) - 100 for i in range(num_rows)
+            ],
+            "ts": [start_time + timedelta(seconds=i) for i in range(num_rows)],
+        }
+    )
 
     repo.insert_events(events_data)
-    logger.info("✓ Inserted {} faulty events (with intentional rule violations)", num_rows)
+    logger.info(
+        "✓ Inserted {} faulty events (with intentional rule violations)", num_rows
+    )
 
     total_checks = 0
     any_failed = False
@@ -70,11 +77,18 @@ def test_rules_yaml_failures():
 
     for idx, row in reports.iterrows():
         status = "✓" if row["passed"] == 1 else "✗"
-        logger.info("{} {} (table={}, passed={})",
-                    status, row["rule"], row["table_name"], row["passed"])
+        logger.info(
+            "{} {} (table={}, passed={})",
+            status,
+            row["rule"],
+            row["table_name"],
+            row["passed"],
+        )
 
     assert any_failed, "Expected at least one rule to fail, but all passed!"
-    assert not all(reports["passed"] == 1), "All reports show passed, expected failures!"
+    assert not all(reports["passed"] == 1), (
+        "All reports show passed, expected failures!"
+    )
 
     logger.info("\n=== Test Summary ===")
     logger.info("✗ Some checks failed as expected (negative test successful)")

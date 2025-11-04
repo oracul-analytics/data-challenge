@@ -108,8 +108,8 @@ class ReportConsumer:
 
 
 class RunProcess:
-    def __init__(self, config_path: Path):
-        self.rule_config = RuleConfig.load(config_path)
+    def __init__(self, infra_path: Path, rules_path: Path):
+        self.rule_config = RuleConfig.load(infra_path, rules_path)
         self.kafka_config = KafkaRuntimeConfig.create_with_random_names()
 
         self.bootstrap_servers = self.rule_config.kafka.bootstrap_servers

@@ -5,18 +5,15 @@ from starlette.responses import Response
 
 registry = CollectorRegistry()
 
-run_counter = Counter(
-    "dq_runs_total",
-    "Total DQ runs",
-    registry=registry
-)
+run_counter = Counter("dq_runs_total", "Total DQ runs", registry=registry)
 
 endpoint_counter = Counter(
     "dq_endpoint_calls_total",
     "Total calls per endpoint",
     ["endpoint", "method", "status_code"],
-    registry=registry
+    registry=registry,
 )
+
 
 class PrometheusMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -24,6 +21,6 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
         endpoint_counter.labels(
             endpoint=request.url.path,
             method=request.method,
-            status_code=response.status_code
+            status_code=response.status_code,
         ).inc()
         return response

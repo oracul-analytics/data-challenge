@@ -1,5 +1,4 @@
 import pandas as pd
-import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from loguru import logger
@@ -10,14 +9,15 @@ from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFac
 from data_quality_monitor.infrastructure.config import RuleConfig
 from data_quality_monitor.application.usecases.process import RunProcess
 
-
-CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "rules.yaml"
+CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
+INFRA_PATH = CONFIG_DIR / "infrastructure.yaml"
+RULES_PATH = CONFIG_DIR / "rules.yaml"
 
 
 def test_rules_yaml_via_kafka():
     logger.info("=== Starting integration test for rules.yaml ===")
 
-    config = RuleConfig.load(CONFIG_PATH)
+    config = RuleConfig.load(INFRA_PATH, RULES_PATH)
     factory = ClickHouseFactory(config.clickhouse)
     repo = ClickHouseRepository(factory=factory)
     repo.ensure_schema()
@@ -36,10 +36,8 @@ def test_rules_yaml_via_kafka():
     repo.insert_events(events_data)
     logger.info("✓ Inserted {} events into dq.events", len(events_data))
 
-    tester = RunProcess(CONFIG_PATH)
-    tester.setup()
-    tester.run()
-    tester.cleanup()
+    tester = RunProcess(INFRA_PATH, RULES_PATH)
+    tester.execute()
 
     logger.info("=== Integration test completed successfully ===")
 

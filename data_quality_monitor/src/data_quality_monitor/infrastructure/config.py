@@ -29,11 +29,18 @@ class RuleConfig:
     rules: tuple[TableRule, ...]
 
     @classmethod
-    def load(cls, path: Path) -> "RuleConfig":
-        with path.open("r", encoding="utf-8") as file:
-            raw = yaml.safe_load(file)
+    def load(cls, infra_path: Path, rules_path: Path) -> "RuleConfig":
+        with infra_path.open("r", encoding="utf-8") as f:
+            infra_raw = yaml.safe_load(f)
+
+        clickhouse_config = ClickHouseConfig(**infra_raw["clickhouse"])
+        kafka_config = KafkaConfig(**infra_raw["kafka"])
+
+        with rules_path.open("r", encoding="utf-8") as f:
+            rules_raw = yaml.safe_load(f)
+
         rules = []
-        for item in raw["rules"]:
+        for item in rules_raw["rules"]:
             expectations = [
                 Expectation(type=exp.pop("type"), params=exp)
                 for exp in item["expectations"]
@@ -41,8 +48,9 @@ class RuleConfig:
             rules.append(
                 TableRule(table=item["table"], expectations=tuple(expectations))
             )
+
         return cls(
-            clickhouse=ClickHouseConfig(**raw["clickhouse"]),
-            kafka=KafkaConfig(**raw["kafka"]),
+            clickhouse=clickhouse_config,
+            kafka=kafka_config,
             rules=tuple(rules),
         )
