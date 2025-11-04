@@ -38,6 +38,8 @@ def bootstrap() -> None:
 def run_checks() -> dict[str, int]:
     reports = app.state.runner.run(app.state.config.rules)
     run_counter.inc()
+    executor = RunProcess(INFRA_PATH, RULES_PATH)
+    executor.execute()
     return {"reports": len(reports)}
 
 
@@ -55,10 +57,3 @@ def metrics() -> PlainTextResponse:
     return PlainTextResponse(
         generate_latest(registry), media_type="text/plain; version=0.0.4"
     )
-
-
-@app.post("/process")
-def run_process() -> dict[str, str]:
-    executor = RunProcess(INFRA_PATH, RULES_PATH)
-    executor.execute()
-    return {"status": "process completed"}
