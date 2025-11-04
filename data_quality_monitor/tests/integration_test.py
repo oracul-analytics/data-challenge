@@ -6,7 +6,7 @@ from loguru import logger
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import ClickHouseRepository
 from data_quality_monitor.infrastructure.clients.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.config import RuleConfig
-from application.usecases.process import RunCheck
+from application.usecases.process import RunProcess
 
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "rules.yaml"
@@ -32,7 +32,7 @@ def test_rules_yaml_via_kafka():
     repo.insert_events(events_data)
     logger.info("✓ Inserted {} events into dq.events", len(events_data))
 
-    tester = RunCheck(CONFIG_PATH)
+    tester = RunProcess(CONFIG_PATH)
     tester.setup()
     tester.run()
     tester.cleanup()

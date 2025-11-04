@@ -9,8 +9,8 @@ from data_quality_monitor.infrastructure.clients.clickhouse import ClickHouseFac
 from data_quality_monitor.application.services.runner import QualityRunner
 from data_quality_monitor.infrastructure.config import RuleConfig
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import ClickHouseRepository
+from data_quality_monitor.application.usecases.process import RunProcess 
 
-# Путь к конфигу от корня проекта
 CONFIG_PATH = Path(__file__).resolve().parent.parent.parent.parent / "config" / "rules.yaml"
 
 app = FastAPI(title="Data Quality Monitor")
@@ -38,7 +38,7 @@ def run_checks() -> dict[str, int]:
 
 @app.get("/reports")
 def list_reports() -> list[dict[str, object]]:
-    repository: ClickHouseRepository = app.state.runner._repository  # noqa: SLF001
+    repository: ClickHouseRepository = app.state.runner._repository
     frame = repository.list_reports()
     return frame.to_dict(orient="records")
 
@@ -46,3 +46,11 @@ def list_reports() -> list[dict[str, object]]:
 @app.get("/metrics")
 def metrics() -> PlainTextResponse:
     return PlainTextResponse(generate_latest(registry), media_type="text/plain; version=0.0.4")
+
+@app.post("/process")
+def run_process() -> dict[str, str]:
+    executor = RunProcess(CONFIG_PATH)
+    executor.setup()
+    executor.run()
+    executor.cleanup()
+    return {"status": "process completed"}
