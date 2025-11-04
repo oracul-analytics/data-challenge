@@ -7,7 +7,14 @@ from data_quality_monitor.infrastructure.rules import engine
 from data_quality_monitor.infrastructure.repositories.redpanda_producer import RedpandaProducer
 from data_quality_monitor.infrastructure.repositories.redpanda_consumer import RedpandaConsumer
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import ClickHouseRepository
+from data_quality_monitor.infrastructure.clients.clickhouse import ClickHouseFactory
+from data_quality_monitor.infrastructure.config import ClickHouseConfig
 from loguru import logger
+import sys
+
+
+logger.remove()
+logger.add(sys.stderr, level="INFO")
 
 
 def create_topic(bootstrap_servers: str, topic: str):
@@ -19,7 +26,6 @@ def create_topic(bootstrap_servers: str, topic: str):
         for topic_name, f in fs.items():
             try:
                 f.result()
-                logger.info("Topic {} created", topic_name)
             except Exception as e:
                 logger.warning("Failed to create topic {}: {}", topic_name, e)
     except Exception as e:
@@ -34,7 +40,6 @@ def delete_topic(bootstrap_servers: str, topic: str):
         for topic_name, f in fs.items():
             try:
                 f.result()
-                logger.info("Topic {} deleted", topic_name)
             except Exception as e:
                 logger.warning("Failed to delete topic {}: {}", topic_name, e)
     except Exception as e:
@@ -45,8 +50,6 @@ def test_completeness_passes():
     bootstrap_servers = "localhost:39092"
     topic_name = f"dq_reports_{uuid.uuid4().hex}"
     group_id = f"dq_monitor_{uuid.uuid4().hex}"
-    
-    logger.info("Using topic: {}", topic_name)
     
     create_topic(bootstrap_servers, topic_name)
     
@@ -64,7 +67,15 @@ def test_completeness_passes():
     
     time.sleep(0.5)
     
-    repo = ClickHouseRepository()
+    clickhouse_config = ClickHouseConfig(
+        host="localhost",
+        port=8125,
+        database="dq",
+        username="default",
+        password=""
+    )
+    factory = ClickHouseFactory(clickhouse_config)
+    repo = ClickHouseRepository(factory=factory)
     repo.ensure_schema()
     
     consumer = RedpandaConsumer(
@@ -83,4 +94,3 @@ def test_completeness_passes():
         consumer.close()
         time.sleep(0.5)
         delete_topic(bootstrap_servers, topic_name)
-        logger.info("Test completed and topic cleaned up")

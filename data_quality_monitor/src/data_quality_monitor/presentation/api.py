@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from prometheus_client import CollectorRegistry, Counter, generate_latest
 from starlette.responses import PlainTextResponse
-
+from data_quality_monitor.infrastructure.clients.clickhouse import ClickHouseFactory
 from data_quality_monitor.application.services.runner import QualityRunner
 from data_quality_monitor.infrastructure.config import RuleConfig
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import ClickHouseRepository
@@ -22,14 +22,9 @@ run_counter = Counter("dq_runs_total", "DQ runs", registry=registry)
 def bootstrap() -> None:
     app.state.config = RuleConfig.load(CONFIG_PATH)
 
-    cfg = app.state.config.clickhouse
-    repository = ClickHouseRepository(
-        host=cfg.host,
-        port=cfg.port,
-        username=cfg.username,
-        password=cfg.password,
-        database=cfg.database,
-    )
+    factory = ClickHouseFactory(app.state.config.clickhouse)
+    repository = ClickHouseRepository(factory=factory)
+    repository.ensure_schema()
 
     app.state.runner = QualityRunner(repository)
 

@@ -15,7 +15,7 @@ class ClickHouseFactory:
         return get_client(
             host=self._config.host,
             port=self._config.port,
-            username=self._config.user,
+            username=self._config.username,
             password=self._config.password,
             database=self._config.database,
         )
