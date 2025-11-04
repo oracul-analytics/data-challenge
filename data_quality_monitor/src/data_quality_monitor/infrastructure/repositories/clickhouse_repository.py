@@ -9,7 +9,7 @@ class ClickHouseRepository:
     def __init__(
         self,
         host: str = "127.0.0.1",
-        port: int = 8123,
+        port: int = 8125,
         username: str = "default",
         password: str = "",
         database: str = "dq",

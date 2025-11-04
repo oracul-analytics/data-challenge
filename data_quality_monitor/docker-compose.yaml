@@ -4,7 +4,7 @@ services:
     image: clickhouse/clickhouse-server:24.3
     container_name: dq-clickhouse
     ports:
-      - "8123:8123"
+      - "8125:8123"
       - "9002:9000"
     environment:
       CLICKHOUSE_DB: dq

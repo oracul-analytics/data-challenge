@@ -74,7 +74,7 @@ def evaluate(table_rule: TableRule, frame: pd.DataFrame) -> QualityReport:
             raise ValueError(f"unknown expectation {expectation.type}")
         results.append(evaluator(frame, expectation))
     return QualityReport(
-        table=table_rule.table,
+        table=table_rule.table,  
         generated_at=datetime.utcnow(),
         results=tuple(results),
     )

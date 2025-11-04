@@ -31,7 +31,7 @@ class RedpandaProducer:
             logger.warning("No results to send for report")
             return
 
-        table_name = report.rule.table if hasattr(report, "rule") and hasattr(report.rule, "table") else "unknown"
+        table_name = report.table
 
         for result in report.results:
             payload = {
