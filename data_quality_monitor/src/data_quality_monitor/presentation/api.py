@@ -1,7 +1,7 @@
+from pathlib import Path
 from fastapi import FastAPI
 from starlette.responses import PlainTextResponse
-from pathlib import Path
-
+from prometheus_client import generate_latest
 from data_quality_monitor.infrastructure.adapters.metrics import (
     registry,
     run_counter,
@@ -14,6 +14,7 @@ from data_quality_monitor.infrastructure.repositories.clickhouse_repository impo
 )
 from data_quality_monitor.application.services.runner import QualityRunner
 from data_quality_monitor.application.usecases.process import RunProcess
+
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent.parent / "config"
 INFRA_PATH = CONFIG_DIR / "infrastructure.yaml"
@@ -52,8 +53,6 @@ def list_reports() -> list[dict[str, object]]:
 
 @app.get("/metrics")
 def metrics() -> PlainTextResponse:
-    from prometheus_client import generate_latest
-
     return PlainTextResponse(
         generate_latest(registry), media_type="text/plain; version=0.0.4"
     )
