@@ -48,7 +48,7 @@ def delete_topic(bootstrap_servers: str, topic: str):
 
 def test_completeness_passes():
     bootstrap_servers = "localhost:39092"
-    topic_name = f"dq_reports_{uuid.uuid4().hex}"
+    topic_name = f"events_{uuid.uuid4().hex}"
     group_id = f"dq_monitor_{uuid.uuid4().hex}"
     
     create_topic(bootstrap_servers, topic_name)
@@ -87,9 +87,9 @@ def test_completeness_passes():
     try:
         consumer.consume(callback=repo.save_from_message, max_messages=1)
         
-        reports = repo.list_reports(limit=1)
-        assert len(reports) > 0
-        assert reports.iloc[0]["table_name"] == "t"
+        events = repo.fetch_table("events")
+        assert len(events) > 0
+        assert events.iloc[0]["table_name"] == "t"
     finally:
         consumer.close()
         time.sleep(0.5)
