@@ -30,7 +30,7 @@ rules:
         threshold: 0.99
 ```
 
-Сервис хранит результаты в ClickHouse таблице `dq_reports` и возвращает их через `/reports`.
+Сервис хранит результаты в ClickHouse таблице `dq.reports` и возвращает их через `/reports`.
 
 ## Мониторинг
 
@@ -39,4 +39,4 @@ rules:
 
 ## Тесты
 
-`make test` — unit по движку правил.
+`make test` — unit, intergration по движку правил и дата процессингу.
