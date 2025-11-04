@@ -8,9 +8,9 @@ import signal
 class RedpandaConsumer:
     def __init__(
         self,
-        bootstrap_servers: str = "localhost:39092",
-        topic: str = "dq_reports",
-        group_id: str = "dq_monitor_group",
+        bootstrap_servers: str,
+        topic: str,
+        group_id: str,
     ):
         self.config = {
             "bootstrap.servers": bootstrap_servers,
@@ -24,6 +24,8 @@ class RedpandaConsumer:
         
         signal.signal(signal.SIGINT, self._shutdown)
         signal.signal(signal.SIGTERM, self._shutdown)
+        
+        logger.info("Consumer initialized with topic: {} and group_id: {}", self.topic, group_id)
 
     def _shutdown(self, signum, frame):
         logger.info("Shutting down consumer...")
@@ -38,6 +40,7 @@ class RedpandaConsumer:
             
             while self.running:
                 if max_messages and messages_processed >= max_messages:
+                    logger.info("Reached max_messages limit: {}", max_messages)
                     break
                 
                 msg = self.consumer.poll(timeout=timeout)
@@ -53,6 +56,8 @@ class RedpandaConsumer:
                     value = json.loads(msg.value().decode("utf-8"))
                     callback(value)
                     messages_processed += 1
+                    logger.debug("Processed message {} of {}", messages_processed, max_messages or "unlimited")
+                    logger.debug("Processed message {} of {}", messages_processed, max_messages or "unlimited")
                     
                 except json.JSONDecodeError as e:
                     logger.error("Failed to decode message: {}", e)
@@ -63,6 +68,8 @@ class RedpandaConsumer:
             logger.error("Kafka exception: {}", e)
         finally:
             self.consumer.close()
+            logger.info("Consumer closed")
+            logger.info("Consumer closed")
 
     def close(self):
         self.running = False

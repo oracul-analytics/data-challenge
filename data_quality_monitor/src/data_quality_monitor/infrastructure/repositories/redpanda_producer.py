@@ -6,9 +6,10 @@ import numpy as np
 
 
 class RedpandaProducer:
-    def __init__(self, bootstrap_servers: str = "localhost:39092", topic: str = "dq_reports"):
+    def __init__(self, bootstrap_servers: str, topic: str):
         self.producer = Producer({"bootstrap.servers": bootstrap_servers})
         self.topic = topic
+        logger.info("Producer initialized with topic: {}", self.topic)
 
     def delivery_report(self, err, msg):
         if err:
@@ -53,4 +54,4 @@ class RedpandaProducer:
                 logger.error("Failed to produce message to Redpanda: {}", e)
 
         self.producer.flush()
-        logger.info("Report sent to Redpanda for table {}", table_name)
+        logger.info("Report sent to Redpanda for table {} on topic {}", table_name, self.topic)

@@ -13,6 +13,7 @@ services:
     volumes:
       - dq_clickhouse_data:/var/lib/clickhouse
       - dq_clickhouse_logs:/var/log/clickhouse-server
+
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:v23.3.10
     container_name: dq-redpanda
@@ -32,6 +33,25 @@ services:
       - PLAINTEXT://dq-redpanda:29092,OUTSIDE://localhost:39092
     ports:
       - "39092:39092"
+
+  akhq:
+    image: tchiotludo/akhq:latest
+    container_name: dq-akhq
+    ports:
+      - "8089:8080"
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            redpanda:
+              properties:
+                bootstrap.servers: "dq-redpanda:29092"
+          server:
+            access-log:
+              enabled: true
+    depends_on:
+      - redpanda
+
 volumes:
   dq_clickhouse_data:
   dq_clickhouse_logs:
