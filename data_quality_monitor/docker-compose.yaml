@@ -58,7 +58,7 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus.yml:/etc/prometheus/prometheus.yaml:ro
       - dq_prometheus_data:/prometheus
     depends_on:
       - clickhouse

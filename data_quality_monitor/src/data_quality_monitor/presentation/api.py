@@ -28,7 +28,6 @@ app.add_middleware(PrometheusMiddleware)
 def bootstrap() -> None:
     app.state.config = RuleConfig.load(INFRA_PATH, RULES_PATH)
 
-    # Initialize repository and runner
     factory = ClickHouseFactory(app.state.config.clickhouse)
     repository = ClickHouseRepository(factory=factory)
     repository.ensure_schema()
