@@ -15,11 +15,18 @@ RULES_PATH = CONFIG_DIR / "rules.yaml"
 
 
 def test_rules_yaml_via_kafka():
-    logger.info("=== Starting integration test for rules.yaml ===")
-
     config = RuleConfig.load(INFRA_PATH, RULES_PATH)
+    logger.info("✓ Loaded config from {} and {}", INFRA_PATH, RULES_PATH)
     factory = ClickHouseFactory(config.clickhouse)
     repo = ClickHouseRepository(factory=factory)
+
+    try:
+        repo.client.command("TRUNCATE TABLE dq.events")
+        repo.client.command("TRUNCATE TABLE dq.reports")
+        logger.info("✓ Cleared events and reports tables")
+    except Exception as e:
+        logger.warning("Could not truncate tables: {}", e)
+
     repo.ensure_schema()
 
     num_rows = 1000

@@ -17,7 +17,7 @@ class ClickHouseRepository:
         self.client.command(f"""
             CREATE TABLE IF NOT EXISTS {self.database}.events (
                 event_id UInt64,
-                value Nullable(Float64),
+                value Float64,
                 ts DateTime
             ) ENGINE = MergeTree()
             ORDER BY ts

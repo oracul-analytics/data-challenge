@@ -21,10 +21,8 @@ RULES_PATH = CONFIG_DIR / "rules.yaml"
 def test_rules_yaml_failures():
     config = RuleConfig.load(INFRA_PATH, RULES_PATH)
     logger.info("✓ Loaded config from {} and {}", INFRA_PATH, RULES_PATH)
-
     factory = ClickHouseFactory(config.clickhouse)
     repo = ClickHouseRepository(factory=factory)
-    repo.ensure_schema()
 
     try:
         repo.client.command("TRUNCATE TABLE dq.events")
@@ -32,6 +30,8 @@ def test_rules_yaml_failures():
         logger.info("✓ Cleared events and reports tables")
     except Exception as e:
         logger.warning("Could not truncate tables: {}", e)
+
+    repo.ensure_schema()
 
     num_rows = 1000
     start_time = datetime(2025, 11, 4, 0, 0, 0)
