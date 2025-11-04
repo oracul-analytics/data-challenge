@@ -15,7 +15,6 @@ class ClickHouseRepository:
     def ensure_schema(self) -> None:
         self.client.command(f"CREATE DATABASE IF NOT EXISTS {self.database}")
         
-        # Таблица events - для бизнес-данных (которые мы проверяем)
         self.client.command(f"""
             CREATE TABLE IF NOT EXISTS {self.database}.events (
                 event_id UInt64,
@@ -25,7 +24,6 @@ class ClickHouseRepository:
             ORDER BY ts
         """)
         
-        # Таблица reports - для ВСЕХ результатов проверок (из /run и из Kafka)
         self.client.command(f"""
             CREATE TABLE IF NOT EXISTS {self.database}.reports (
                 table_name String,
@@ -40,7 +38,6 @@ class ClickHouseRepository:
         logger.info("Schema ensured (events and reports tables created)")
 
     def save_report(self, report: QualityReport) -> None:
-        """Save a single quality report to the reports table."""
         try:
             rows = []
             for result in report.results:
@@ -62,7 +59,6 @@ class ClickHouseRepository:
             logger.error("Failed to save report for table={}: {}", report.table, e)
 
     def save_reports(self, reports: list[QualityReport]) -> None:
-        """Save multiple quality reports to the reports table in a batch."""
         try:
             all_rows = []
             for report in reports:
@@ -87,7 +83,6 @@ class ClickHouseRepository:
             logger.error("Failed to save reports: {}", e)
 
     def save_from_message(self, message: dict) -> None:
-        """Save quality check result from Kafka/Redpanda message to reports table."""
         try:
             row = {
                 "table_name": str(message["table_name"]),
@@ -125,7 +120,6 @@ class ClickHouseRepository:
             return pd.DataFrame()
 
     def list_reports(self) -> pd.DataFrame:
-        """List all quality check reports (from both /run endpoint and Kafka)."""
         try:
             query = f"SELECT * FROM {self.database}.reports ORDER BY generated_at DESC"
             return self.client.query_df(query)
