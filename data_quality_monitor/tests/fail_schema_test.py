@@ -8,6 +8,7 @@ from data_quality_monitor.infrastructure.repositories.clickhouse_repository impo
 from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.config import RuleConfig
 from data_quality_monitor.domain.models.result import QualityReport, RuleResult
+from data_quality_monitor.domain.repository.clickhouse import ClickHouseRepositoryDomain
 import sys
 from loguru import logger
 
@@ -25,6 +26,7 @@ def test_rules_yaml_failures():
 
     factory = ClickHouseFactory(config.clickhouse)
     repo = ClickHouseRepository(factory=factory)
+    domain_repo = ClickHouseRepositoryDomain(repo.client, repo.database)
 
     try:
         repo.client.command(f"""
@@ -35,8 +37,9 @@ def test_rules_yaml_failures():
             ) ENGINE = MergeTree()
             ORDER BY ts
         """)
-        repo.truncate_table("dq.events")
-        repo.truncate_table("dq.reports")
+
+        domain_repo.truncate_table(f"{repo.database}.events")
+        domain_repo.truncate_table(f"{repo.database}.reports")
         logger.info("✗ Created intentionally faulty schema (event_id as String)")
     except Exception as e:
         logger.error("Failed to create faulty schema: {}", e)

@@ -13,15 +13,15 @@ from data_quality_monitor.infrastructure.repositories.clickhouse_repository impo
     ClickHouseRepository,
 )
 from data_quality_monitor.application.services.runner import QualityRunner
-from data_quality_monitor.application.usecases.process import RunProcess
-
+from data_quality_monitor.application.usecases.run_check import (
+    RunProcess,
+)
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent.parent / "config"
 INFRA_PATH = CONFIG_DIR / "infrastructure.yaml"
 RULES_PATH = CONFIG_DIR / "rules.yaml"
 
 app = FastAPI(title="Data Quality Monitor")
-
 app.add_middleware(PrometheusMiddleware)
 
 

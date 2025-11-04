@@ -7,7 +7,7 @@ from data_quality_monitor.infrastructure.repositories.clickhouse_repository impo
 )
 from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.config import RuleConfig
-from data_quality_monitor.application.usecases.process import RunProcess
+from data_quality_monitor.application.usecases.run_check import RunProcess
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 INFRA_PATH = CONFIG_DIR / "infrastructure.yaml"
