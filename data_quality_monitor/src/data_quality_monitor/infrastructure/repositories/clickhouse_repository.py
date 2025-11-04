@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import numpy as np
 from loguru import logger
 
 from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
@@ -19,7 +20,7 @@ class ClickHouseRepository:
         self.client.command(f"""
             CREATE TABLE IF NOT EXISTS {self.database}.events (
                 event_id UInt64,
-                value Float64,
+                value Nullable(Float64),
                 ts DateTime
             ) ENGINE = MergeTree()
             ORDER BY ts
@@ -60,6 +61,7 @@ class ClickHouseRepository:
 
         except Exception as e:
             logger.error("Failed to save report for table={}: {}", report.table, e)
+            raise
 
     def save_reports(self, reports: list[QualityReport]) -> None:
         try:
@@ -88,6 +90,7 @@ class ClickHouseRepository:
 
         except Exception as e:
             logger.error("Failed to save reports: {}", e)
+            raise
 
     def save_from_message(self, message: dict) -> None:
         try:
@@ -103,20 +106,32 @@ class ClickHouseRepository:
 
             df = pd.DataFrame([row])
             self.client.insert(f"{self.database}.reports", df)
-            logger.info(
+            logger.debug(
                 "Saved from Kafka: table={}, rule={}", row["table_name"], row["rule"]
             )
 
         except Exception as e:
             logger.error("Failed to save from Kafka: {}", e)
+            raise
 
     def insert_events(self, events: pd.DataFrame) -> None:
-        """Insert business events into events table."""
         try:
-            self.client.insert(f"{self.database}.events", events)
-            logger.info("Inserted {} events", len(events))
+            df_insert = events.copy()
+            if "value" in df_insert.columns:
+                df_insert["value"] = df_insert["value"].astype("Float64")
+
+            self.client.insert(f"{self.database}.events", df_insert)
+
+            null_count = (
+                df_insert["value"].isna().sum() if "value" in df_insert.columns else 0
+            )
+            logger.info(
+                "✓ Inserted {} events ({} with NULL values)", len(df_insert), null_count
+            )
+
         except Exception as e:
-            logger.error("Failed to insert events: {}", e)
+            logger.error("❌ Failed to insert events: {}", e)
+            raise
 
     def fetch_table(self, table_name: str) -> pd.DataFrame:
         try:
@@ -125,7 +140,10 @@ class ClickHouseRepository:
             else:
                 full_table_name = f"{self.database}.{table_name}"
 
-            return self.client.query_df(f"SELECT * FROM {full_table_name}")
+            df = self.client.query_df(f"SELECT * FROM {full_table_name}")
+            logger.debug("Fetched {} rows from {}", len(df), full_table_name)
+            return df
+
         except Exception as e:
             logger.error("Failed to fetch table {}: {}", table_name, e)
             return pd.DataFrame()
@@ -137,3 +155,14 @@ class ClickHouseRepository:
         except Exception as e:
             logger.error(f"Failed to list reports: {e}")
             return pd.DataFrame()
+
+    def truncate_table(self, table_name: str) -> None:
+        try:
+            if "." not in table_name:
+                table_name = f"{self.database}.{table_name}"
+
+            self.client.command(f"TRUNCATE TABLE IF EXISTS {table_name}")
+            logger.info(f"Truncated table: {table_name}")
+        except Exception as e:
+            logger.error(f"Failed to truncate {table_name}: {e}")
+            raise
