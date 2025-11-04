@@ -33,7 +33,6 @@ def test_rules_yaml_failures():
     except Exception as e:
         logger.warning("Could not truncate tables: {}", e)
 
-    # Insert faulty events to trigger rule violations
     num_rows = 1000
     start_time = datetime(2025, 11, 4, 0, 0, 0)
 
@@ -41,7 +40,7 @@ def test_rules_yaml_failures():
         {
             "event_id": [i % 100 for i in range(num_rows)],
             "value": [
-                None if i % 200 == 0 else (i % 1200) - 100 for i in range(num_rows)
+                None if i % 50 == 0 else (i % 1200) - 100 for i in range(num_rows)
             ],
             "ts": [start_time + timedelta(seconds=i) for i in range(num_rows)],
         }
@@ -52,46 +51,44 @@ def test_rules_yaml_failures():
         "✓ Inserted {} faulty events (with intentional rule violations)", num_rows
     )
 
-    total_checks = 0
-    any_failed = False
-
     for rule in config.rules:
         frame = repo.fetch_table(rule.table)
         report = engine.evaluate(rule, frame)
 
         logger.info("\n=== Report for {} ===", rule.table)
         for result in report.results:
-            total_checks += 1
             status = "✓ PASSED" if result.passed else "✗ FAILED"
-            logger.info("{} - {}", status, result.rule)
-            logger.info("  Details: {}", result.details)
-
-            if not result.passed:
-                any_failed = True
+            logger.info("{:<8} {:<25} Details: {}", status, result.rule, result.details)
 
         repo.save_report(report)
 
     reports = repo.list_reports()
     logger.info("\n=== Saved Reports ===")
     logger.info("Total reports: {}", len(reports))
-
     for idx, row in reports.iterrows():
         status = "✓" if row["passed"] == 1 else "✗"
         logger.info(
-            "{} {} (table={}, passed={})",
+            "{:<2} {:<25} (table={}, passed={})",
             status,
             row["rule"],
             row["table_name"],
             row["passed"],
         )
 
-    assert any_failed, "Expected at least one rule to fail, but all passed!"
-    assert not all(reports["passed"] == 1), (
-        "All reports show passed, expected failures!"
-    )
+    non_schema_passed = reports[
+        (reports["passed"] == 1) & (reports["rule"] != "schema")
+    ]
+    if not non_schema_passed.empty:
+        logger.error("\nSome rules (excluding schema) passed, test failed!")
+        for idx, row in non_schema_passed.iterrows():
+            logger.error(
+                "Rule '{}' passed on table '{}'", row["rule"], row["table_name"]
+            )
+        raise AssertionError(
+            "Expected all rules (except schema) to fail, but some passed!"
+        )
 
-    logger.info("\n=== Test Summary ===")
-    logger.info("✗ Some checks failed as expected (negative test successful)")
+    logger.info("\nAll rules failed as expected (excluding schema). Test successful.")
 
 
 if __name__ == "__main__":
