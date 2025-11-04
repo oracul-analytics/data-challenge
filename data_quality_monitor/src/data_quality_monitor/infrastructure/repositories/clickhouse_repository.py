@@ -15,17 +15,17 @@ class ClickHouseRepository:
     def ensure_schema(self) -> None:
         self.client.command(f"CREATE DATABASE IF NOT EXISTS {self.database}")
         
+        # Таблица events - для бизнес-данных (которые мы проверяем)
         self.client.command(f"""
             CREATE TABLE IF NOT EXISTS {self.database}.events (
-                table_name String,
-                rule String,
-                passed UInt8,
-                details String,
-                generated_at DateTime
+                event_id UInt64,
+                value Float64,
+                ts DateTime
             ) ENGINE = MergeTree()
-            ORDER BY generated_at
+            ORDER BY ts
         """)
         
+        # Таблица reports - для ВСЕХ результатов проверок (из /run и из Kafka)
         self.client.command(f"""
             CREATE TABLE IF NOT EXISTS {self.database}.reports (
                 table_name String,
@@ -87,6 +87,7 @@ class ClickHouseRepository:
             logger.error("Failed to save reports: {}", e)
 
     def save_from_message(self, message: dict) -> None:
+        """Save quality check result from Kafka/Redpanda message to reports table."""
         try:
             row = {
                 "table_name": str(message["table_name"]),
@@ -97,11 +98,19 @@ class ClickHouseRepository:
             }
             
             df = pd.DataFrame([row])
-            self.client.insert(f"{self.database}.events", df)
-            logger.info("Saved: table={}, rule={}", row["table_name"], row["rule"])
+            self.client.insert(f"{self.database}.reports", df)
+            logger.info("Saved from Kafka: table={}, rule={}", row["table_name"], row["rule"])
             
         except Exception as e:
-            logger.error("Failed to save: {}", e)
+            logger.error("Failed to save from Kafka: {}", e)
+
+    def insert_events(self, events: pd.DataFrame) -> None:
+        """Insert business events into events table."""
+        try:
+            self.client.insert(f"{self.database}.events", events)
+            logger.info("Inserted {} events", len(events))
+        except Exception as e:
+            logger.error("Failed to insert events: {}", e)
 
     def fetch_table(self, table_name: str) -> pd.DataFrame:
         try:
@@ -115,9 +124,11 @@ class ClickHouseRepository:
             logger.error("Failed to fetch table {}: {}", table_name, e)
             return pd.DataFrame()
 
-    def list_reports(self, limit: int = 100) -> pd.DataFrame:
+    def list_reports(self) -> pd.DataFrame:
+        """List all quality check reports (from both /run endpoint and Kafka)."""
         try:
-            return self.client.query_df(f"SELECT * FROM {self.database}.reports ORDER BY generated_at DESC LIMIT {limit}")
+            query = f"SELECT * FROM {self.database}.reports ORDER BY generated_at DESC"
+            return self.client.query_df(query)
         except Exception as e:
-            logger.error("Failed to list reports: {}", e)
+            logger.error(f"Failed to list reports: {e}")
             return pd.DataFrame()

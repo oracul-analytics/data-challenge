@@ -20,4 +20,4 @@ run-checks:
 	$(PYTHON) -m data_quality_monitor.presentation.cli run --config config/rules.yaml
 
 test:
-	$(POETRY) run pytest
+	$(POETRY) run pytest -s -v
