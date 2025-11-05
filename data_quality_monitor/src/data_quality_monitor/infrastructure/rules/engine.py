@@ -7,6 +7,7 @@ import pandas as pd
 
 from data_quality_monitor.domain.models.result import QualityReport, RuleResult
 from data_quality_monitor.domain.models.rule import Expectation, TableRule
+from datetime import datetime, timezone
 
 Evaluator = Callable[[pd.DataFrame, Expectation], RuleResult]
 
@@ -25,7 +26,11 @@ def completeness(frame: pd.DataFrame, expectation: Expectation) -> RuleResult:
 def uniqueness(frame: pd.DataFrame, expectation: Expectation) -> RuleResult:
     column = expectation.params["column"]
     threshold = float(expectation.params.get("threshold", 1.0))
-    ratio = frame[column].nunique() / len(frame) if column in frame.columns and len(frame) else 0.0
+    ratio = (
+        frame[column].nunique() / len(frame)
+        if column in frame.columns and len(frame)
+        else 0.0
+    )
     return RuleResult(
         rule=f"uniqueness:{column}",
         passed=ratio >= threshold,
@@ -37,12 +42,20 @@ def range_check(frame: pd.DataFrame, expectation: Expectation) -> RuleResult:
     column = expectation.params["column"]
     min_value = expectation.params.get("min")
     max_value = expectation.params.get("max")
-    violations = frame[(frame[column] < min_value) | (frame[column] > max_value)] if column in frame.columns else frame
+    violations = (
+        frame[(frame[column] < min_value) | (frame[column] > max_value)]
+        if column in frame.columns
+        else frame
+    )
     passed = len(violations) == 0
     return RuleResult(
         rule=f"range:{column}",
         passed=passed,
-        details={"violations": int(len(violations)), "min": min_value, "max": max_value},
+        details={
+            "violations": int(len(violations)),
+            "min": min_value,
+            "max": max_value,
+        },
     )
 
 
@@ -74,7 +87,7 @@ def evaluate(table_rule: TableRule, frame: pd.DataFrame) -> QualityReport:
             raise ValueError(f"unknown expectation {expectation.type}")
         results.append(evaluator(frame, expectation))
     return QualityReport(
-        table=table_rule.table,  
-        generated_at=datetime.utcnow(),
+        table=table_rule.table,
+        generated_at=datetime.now(timezone.utc),
         results=tuple(results),
     )

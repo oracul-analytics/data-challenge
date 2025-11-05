@@ -15,12 +15,23 @@ class FeatureRegistry:
     def default(cls) -> "FeatureRegistry":
         return cls(
             features=(
-                Feature("value_mean", lambda df: df.groupby("entity_id")["value"].transform("mean")),
-                Feature("value_std", lambda df: df.groupby("entity_id")["value"].transform("std")),
-                Feature("value_count", lambda df: df.groupby("entity_id")["value"].transform("count")),
+                Feature(
+                    "value_mean",
+                    lambda df: df.groupby("entity_id")["value"].transform("mean"),
+                ),
+                Feature(
+                    "value_std",
+                    lambda df: df.groupby("entity_id")["value"].transform("std"),
+                ),
+                Feature(
+                    "value_count",
+                    lambda df: df.groupby("entity_id")["value"].transform("count"),
+                ),
                 Feature(
                     "value_p95",
-                    lambda df: df.groupby("entity_id")["value"].transform(lambda s: s.quantile(0.95)),
+                    lambda df: df.groupby("entity_id")["value"].transform(
+                        lambda s: s.quantile(0.95)
+                    ),
                 ),
                 Feature(
                     "attribute_mean",
