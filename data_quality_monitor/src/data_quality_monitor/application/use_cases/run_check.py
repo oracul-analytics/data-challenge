@@ -42,10 +42,11 @@ class TopicManager:
 
 
 class KafkaService:
-    def __init__(self, config: KafkaConfig, runtime: KafkaRuntimeConfig):
-        self.bootstrap_servers = config.bootstrap_servers
+    def __init__(self, config: KafkaConfig, runtime: KafkaRuntimeConfig, producer_profile: str = "high_throughput"):
+        self.config = config
         self.runtime = runtime
-        self.topic_manager = TopicManager(self.bootstrap_servers, config.topic)
+        self.producer_profile = producer_profile
+        self.topic_manager = TopicManager(config.bootstrap_servers, config.topic)
         self.consumer_config = config.consumer
 
     def setup(self):
@@ -54,12 +55,15 @@ class KafkaService:
     def cleanup(self):
         self.topic_manager.delete(self.runtime.topic_name)
 
-    def producer(self):
-        return RedpandaProducer(bootstrap_servers=self.bootstrap_servers, topic=self.runtime.topic_name)
+    def producer(self, auto_flush_interval: int = 1000) -> RedpandaProducer:
+        profile = self.config.producer_profiles[self.producer_profile]
+        return RedpandaProducer(
+            bootstrap_servers=self.config.bootstrap_servers, topic=self.runtime.topic_name, config=profile, auto_flush_interval=auto_flush_interval
+        )
 
     def consume(self, repository: ClickHouseRepository, total_messages: int):
         consumer = RedpandaConsumer(
-            bootstrap_servers=self.bootstrap_servers,
+            bootstrap_servers=self.config.bootstrap_servers,
             topic=self.runtime.topic_name,
             group_id=self.runtime.group_id,
             timeout_seconds=self.consumer_config.default_timeout_seconds,

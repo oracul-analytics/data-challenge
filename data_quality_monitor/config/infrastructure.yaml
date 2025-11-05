@@ -14,4 +14,30 @@ kafka:
     delete_timeout_seconds: 30
 
   consumer:
-    default_timeout_seconds: 1.0
+    default_timeout_seconds: 0.8
+
+  producer_profiles:
+    high_throughput:
+      linger_ms: 100
+      batch_size: 1000000
+      compression_type: "snappy"
+      acks: 1
+      max_in_flight: 10
+      queue_buffering_max_messages: 100000
+      queue_buffering_max_kbytes: 1048576
+    low_latency:
+      linger_ms: 0
+      batch_size: 16384
+      compression_type: "snappy"
+      acks: 1
+      max_in_flight: 5
+      queue_buffering_max_messages: 100000
+      queue_buffering_max_kbytes: 1048576
+    reliable:
+      linger_ms: 100
+      batch_size: 1000000
+      compression_type: "snappy"
+      acks: -1
+      max_in_flight: 1
+      queue_buffering_max_messages: 100000
+      queue_buffering_max_kbytes: 1048576

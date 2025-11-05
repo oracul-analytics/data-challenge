@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Dict
 
 import yaml
 
@@ -31,10 +32,22 @@ class KafkaConsumerConfig:
 
 
 @dataclass(slots=True)
+class ProducerProfileConfig:
+    linger_ms: int
+    batch_size: int
+    compression_type: str
+    acks: int
+    max_in_flight: int
+    queue_buffering_max_messages: int
+    queue_buffering_max_kbytes: int
+
+
+@dataclass(slots=True)
 class KafkaConfig:
     bootstrap_servers: str
     topic: KafkaTopicConfig
     consumer: KafkaConsumerConfig
+    producer_profiles: Dict[str, ProducerProfileConfig]
 
 
 @dataclass(slots=True)
@@ -52,10 +65,13 @@ class RuleConfig:
         kafka_raw = infra_raw["kafka"]
         kafka_topic_config = KafkaTopicConfig(**kafka_raw["topic"])
         kafka_consumer_config = KafkaConsumerConfig(**kafka_raw["consumer"])
+        producer_profiles_raw = kafka_raw.get("producer_profiles", {})
+        producer_profiles = {name: ProducerProfileConfig(**profile) for name, profile in producer_profiles_raw.items()}
         kafka_config = KafkaConfig(
             bootstrap_servers=kafka_raw["bootstrap_servers"],
             topic=kafka_topic_config,
             consumer=kafka_consumer_config,
+            producer_profiles=producer_profiles,
         )
 
         with rules_path.open("r", encoding="utf-8") as f:

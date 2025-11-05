@@ -33,7 +33,7 @@ class _KafkaConsumerWrapper:
 
 
 class _MessageProcessor:
-    def __init__(self, consumer: _KafkaConsumerWrapper, timeout_seconds: float = 1.0):
+    def __init__(self, consumer: _KafkaConsumerWrapper, timeout_seconds):
         self.consumer = consumer
         self.timeout_seconds = timeout_seconds
         self.running = True
@@ -73,7 +73,7 @@ class _SignalHandler:
 
 
 class RedpandaConsumer:
-    def __init__(self, bootstrap_servers: str, topic: str, group_id: str, timeout_seconds: float = 1.0):
+    def __init__(self, bootstrap_servers: str, topic: str, group_id: str, timeout_seconds):
         self._consumer_wrapper = _KafkaConsumerWrapper(bootstrap_servers, group_id, topic)
         self._processor = _MessageProcessor(self._consumer_wrapper, timeout_seconds)
         _SignalHandler.register(self._processor)
