@@ -1,5 +1,5 @@
-from data_quality_monitor.domain.models.rule import TableRule
-from data_quality_monitor.domain.models.result import RuleResult
+from data_quality_monitor.domain.models.rules.rule import TableRule
+from data_quality_monitor.domain.models.rules.result import RuleResult
 
 
 class SchemaValidator:

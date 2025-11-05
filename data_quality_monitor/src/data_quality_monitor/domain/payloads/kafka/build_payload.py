@@ -1,4 +1,4 @@
-from data_quality_monitor.domain.models.result import QualityReport
+from data_quality_monitor.domain.models.rules.result import QualityReport
 
 
 class KafkaPayloadBuilder:

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pandas as pd
 from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
-from data_quality_monitor.domain.models.result import QualityReport
+from data_quality_monitor.domain.models.rules.result import QualityReport
 from data_quality_monitor.infrastructure.config import RuleConfig
-from data_quality_monitor.domain.models.rule import Expectation
+from data_quality_monitor.domain.models.rules.rule import Expectation
 from typing import Dict
 
 

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Callable, Mapping
 
 import pandas as pd
 
-from data_quality_monitor.domain.models.result import QualityReport, RuleResult
-from data_quality_monitor.domain.models.rule import Expectation, TableRule
+from data_quality_monitor.domain.models.rules.result import QualityReport, RuleResult
+from data_quality_monitor.domain.models.rules.rule import Expectation, TableRule
 from datetime import datetime, timezone
 
 Evaluator = Callable[[pd.DataFrame, Expectation], RuleResult]

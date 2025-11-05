@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from loguru import logger
 
-from data_quality_monitor.domain.models.result import QualityReport
+from data_quality_monitor.domain.models.rules.result import QualityReport
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import ClickHouseRepository
 from data_quality_monitor.infrastructure.rules.engine import evaluate
-from data_quality_monitor.domain.models.rule import TableRule
+from data_quality_monitor.domain.models.rules.rule import TableRule
 
 
 class QualityRunner:

@@ -6,7 +6,7 @@ from typing import Dict
 
 import yaml
 
-from data_quality_monitor.domain.models.rule import Expectation, TableRule
+from data_quality_monitor.domain.models.rules.rule import Expectation, TableRule
 
 
 @dataclass(slots=True)

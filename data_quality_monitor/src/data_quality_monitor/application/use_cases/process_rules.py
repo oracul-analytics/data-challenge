@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
-from data_quality_monitor.domain.models.rule import TableRule
-from data_quality_monitor.domain.models.result import QualityReport, RuleResult
+from data_quality_monitor.domain.models.rules.rule import TableRule
+from data_quality_monitor.domain.models.rules.result import QualityReport, RuleResult
 from data_quality_monitor.infrastructure.adapters.redpanda_producer import RedpandaProducer
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import ClickHouseRepository
 from data_quality_monitor.infrastructure.rules import engine

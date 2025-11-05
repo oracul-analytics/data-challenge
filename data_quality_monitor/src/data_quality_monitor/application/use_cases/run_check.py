@@ -1,51 +1,19 @@
-import uuid
 from pathlib import Path
 from dataclasses import dataclass
 
 from confluent_kafka.admin import AdminClient, NewTopic
 from loguru import logger
 
-from data_quality_monitor.infrastructure.adapters.redpanda_producer import RedpandaProducer, ProducerConfig
-from data_quality_monitor.infrastructure.adapters.redpanda_consumer import RedpandaConsumer, ConsumerConfig
+from data_quality_monitor.infrastructure.adapters.redpanda_producer import RedpandaProducer
+from data_quality_monitor.infrastructure.adapters.redpanda_consumer import RedpandaConsumer
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import ClickHouseRepository
 from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.config import RuleConfig, KafkaConfig
 from data_quality_monitor.application.use_cases.process_rules import ProcessRulesUseCase
 from dataclasses import asdict
-
-
-@dataclass
-class RedpandaProducerConfig:
-    bootstrap_servers: str
-    topic: str
-    linger_ms: int
-    batch_size: int
-    compression_type: str
-    acks: int
-    max_in_flight: int
-    queue_buffering_max_messages: int
-    queue_buffering_max_kbytes: int
-
-
-@dataclass
-class RedpandaConsumerConfig:
-    bootstrap_servers: str
-    group_id: str
-    topic: str
-    timeout_seconds: float
-    auto_offset_reset: str
-    enable_auto_commit: bool
-
-
-@dataclass
-class KafkaRuntimeConfig:
-    topic_name: str
-    group_id: str
-
-    @classmethod
-    def random(cls) -> "KafkaRuntimeConfig":
-        uid = uuid.uuid4().hex
-        return cls(f"events_{uid}", f"dq_monitor_{uid}")
+from data_quality_monitor.domain.models.kafka.config import RedpandaConsumerConfig
+from data_quality_monitor.domain.models.kafka.config import RedpandaProducerConfig
+from data_quality_monitor.domain.models.kafka.config import KafkaRuntimeConfig
 
 
 class TopicManager:
@@ -89,7 +57,6 @@ class KafkaService:
         self.topic_manager.delete(self.runtime.topic_name)
 
     def producer(self) -> RedpandaProducer:
-        """Создаёт продюсера Redpanda с профилем из конфигурации"""
         profile_cfg = self.config.producer_profiles[self.producer_profile]
         producer_config = RedpandaProducerConfig(
             bootstrap_servers=self.config.bootstrap_servers,
@@ -102,7 +69,6 @@ class KafkaService:
         )
 
     def consume(self, repository: ClickHouseRepository, total_messages: int, consumer_profile_name: str = "low_latency"):
-        """Читает сообщения из топика и сохраняет их в ClickHouse"""
         profile = self.config.consumer_profiles[consumer_profile_name]
         consumer_config = RedpandaConsumerConfig(
             bootstrap_servers=self.config.bootstrap_servers,
@@ -116,8 +82,6 @@ class KafkaService:
 
 
 class RunProcess:
-    """Основной исполнительный класс: orchestrator пайплайна"""
-
     def __init__(self, infra_path: Path, rules_path: Path, consumer_profile: str = "low_latency"):
         self.config = RuleConfig.load(infra_path, rules_path)
         self.runtime = KafkaRuntimeConfig.random()
