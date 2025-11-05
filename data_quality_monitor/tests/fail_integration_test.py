@@ -4,12 +4,13 @@ from pathlib import Path
 from loguru import logger
 import sys
 
-from data_quality_monitor.application.usecases.run_check import RunProcess
+from data_quality_monitor.application.use_cases.run_check import RunProcess
 from data_quality_monitor.infrastructure.config import RuleConfig
 from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import (
     ClickHouseRepository,
 )
+from data_quality_monitor.domain.repository.clickhouse import ClickHouseRepositoryDomain
 
 logger.remove()
 logger.add(sys.stderr, level="INFO")
@@ -26,13 +27,10 @@ def test_rules_yaml_failures_via_usecases():
     factory = ClickHouseFactory(config.clickhouse)
     repo = ClickHouseRepository(factory=factory, rule_config=config)
 
-    try:
-        repo.client.command("TRUNCATE TABLE dq.events")
-        repo.client.command("TRUNCATE TABLE dq.reports")
-        logger.info("✓ Cleared events and reports tables")
-    except Exception as e:
-        logger.warning("Could not truncate tables: {}", e)
-
+    repo_domain = ClickHouseRepositoryDomain(client=repo.client, database=repo.database)
+    repo_domain.drop_table("dq.events")
+    repo_domain.drop_table("dq.reports")
+    logger.info("✓ Dropped events and reports tables")
     repo.ensure_schema()
 
     num_rows = 1000

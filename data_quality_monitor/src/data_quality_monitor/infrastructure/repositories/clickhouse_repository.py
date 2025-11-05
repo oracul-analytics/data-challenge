@@ -119,8 +119,13 @@ class ClickHouseRepository:
     def insert_events(self, events: pd.DataFrame) -> None:
         try:
             df = events.copy()
+
+            if "event_id" in df.columns:
+                df["event_id"] = df["event_id"].astype("uint64")
+
             if "value" in df.columns:
                 df["value"] = df["value"].astype("Float64")
+
             self._insert_dataframe("events", df)
             null_count = df["value"].isna().sum() if "value" in df.columns else 0
             logger.info(

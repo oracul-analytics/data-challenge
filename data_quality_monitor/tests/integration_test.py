@@ -7,7 +7,8 @@ from data_quality_monitor.infrastructure.repositories.clickhouse_repository impo
 )
 from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.config import RuleConfig
-from data_quality_monitor.application.usecases.run_check import RunProcess
+from data_quality_monitor.application.use_cases.run_check import RunProcess
+from data_quality_monitor.domain.repository.clickhouse import ClickHouseRepositoryDomain
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 INFRA_PATH = CONFIG_DIR / "infrastructure.yaml"
@@ -20,12 +21,10 @@ def test_rules_yaml_via_kafka():
     factory = ClickHouseFactory(config.clickhouse)
     repo = ClickHouseRepository(factory=factory, rule_config=config)
 
-    try:
-        repo.client.command("TRUNCATE TABLE dq.events")
-        repo.client.command("TRUNCATE TABLE dq.reports")
-        logger.info("✓ Cleared events and reports tables")
-    except Exception as e:
-        logger.warning("Could not truncate tables: {}", e)
+    repo_domain = ClickHouseRepositoryDomain(client=repo.client, database=repo.database)
+    repo_domain.drop_table("dq.events")
+    repo_domain.drop_table("dq.reports")
+    logger.info("✓ Dropped events and reports tables")
 
     repo.ensure_schema()
 

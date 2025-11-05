@@ -4,12 +4,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from confluent_kafka.admin import AdminClient, NewTopic
 from loguru import logger
+import pandas as pd
 
-from data_quality_monitor.infrastructure.rules import engine
 from data_quality_monitor.infrastructure.adapters.redpanda_producer import (
     RedpandaProducer,
 )
-from data_quality_monitor.domain.models.rule import Expectation
+from data_quality_monitor.domain.models.rule import Expectation, TableRule
+from data_quality_monitor.domain.models.result import QualityReport, RuleResult
 from data_quality_monitor.infrastructure.adapters.redpanda_consumer import (
     RedpandaConsumer,
 )
@@ -18,11 +19,8 @@ from data_quality_monitor.infrastructure.repositories.clickhouse_repository impo
 )
 from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.config import RuleConfig
-from data_quality_monitor.infrastructure.rules.engine import (
-    QualityReport,
-    TableRule,
-    RuleResult,
-)
+from data_quality_monitor.infrastructure.rules import engine
+from data_quality_monitor.application.services.schema_validation import SchemaValidator
 
 
 @dataclass
@@ -65,32 +63,6 @@ class TopicManager:
             return False
 
 
-class SchemaValidator:
-    def __init__(self, repository: ClickHouseRepository):
-        self.repository = repository
-
-    def validate(self, rule: TableRule, producer: RedpandaProducer) -> tuple[bool, int]:
-        expectations = [e for e in rule.expectations if e.type == "schema"]
-        if not expectations:
-            return True, 0
-
-        actual_schema = self.repository.get_table_schema(rule.table)
-
-        enriched_expectations = []
-        for exp in expectations:
-            enriched_params = {**exp.params, "_actual_schema": actual_schema}
-            enriched_expectations.append(
-                Expectation(type=exp.type, params=enriched_params)
-            )
-
-        report = engine.evaluate(
-            TableRule(table=rule.table, expectations=tuple(enriched_expectations)),
-            self.repository.fetch_table(rule.table),
-        )
-        producer.send_report(report)
-        return all(r.passed for r in report.results), len(report.results)
-
-
 class RuleEvaluator:
     def __init__(self, repository: ClickHouseRepository):
         self.repository = repository
@@ -109,23 +81,25 @@ class RuleEvaluator:
     def _create_report(
         self, rule: TableRule, expectations: list, schema_valid: bool
     ) -> QualityReport:
-        if schema_valid:
-            return engine.evaluate(
-                TableRule(table=rule.table, expectations=expectations),
-                self.repository.fetch_table(rule.table),
+        # Если схема невалидна - все правила автоматически failed БЕЗ чтения данных
+        if not schema_valid:
+            return QualityReport(
+                table=rule.table,
+                generated_at=datetime.now(timezone.utc),
+                results=tuple(
+                    RuleResult(
+                        rule=f"{e.type}:{e.params.get('column', '')}",
+                        passed=False,
+                        details={"skipped_due_to_schema_failure": True},
+                    )
+                    for e in expectations
+                ),
             )
 
-        return QualityReport(
-            table=rule.table,
-            generated_at=datetime.now(timezone.utc),
-            results=tuple(
-                RuleResult(
-                    rule=f"{e.type}:{e.params.get('column', '')}",
-                    passed=False,
-                    details={"skipped_due_to_schema_failure": True},
-                )
-                for e in expectations
-            ),
+        # Если схема валидна - выполняем проверки
+        return engine.evaluate(
+            TableRule(table=rule.table, expectations=tuple(expectations)),
+            self.repository.fetch_table(rule.table),
         )
 
 
@@ -135,29 +109,36 @@ class RuleProcessor:
         self.rule_evaluator = RuleEvaluator(repository)
 
     def process(self, rules: list[TableRule], producer: RedpandaProducer) -> int:
-        schema_valid = self._validate_schemas(rules, producer)
-        return self._evaluate_rules(rules, schema_valid, producer)
-
-    def _validate_schemas(
-        self, rules: list[TableRule], producer: RedpandaProducer
-    ) -> bool:
         total_messages = 0
-        all_valid = True
 
         for rule in rules:
-            if any(e.type == "schema" for e in rule.expectations):
-                valid, count = self.schema_validator.validate(rule, producer)
-                total_messages += count
-                all_valid &= valid
+            # Шаг 1: Проверяем schema (если есть)
+            schema_valid, schema_msg_count = self._validate_schema_for_rule(
+                rule, producer
+            )
+            total_messages += schema_msg_count
 
-        return all_valid
+            # Шаг 2: Обрабатываем остальные правила
+            # Если schema failed (schema_valid=False), то все правила будут автоматически failed
+            other_msg_count = self.rule_evaluator.evaluate(rule, schema_valid, producer)
+            total_messages += other_msg_count
 
-    def _evaluate_rules(
-        self, rules: list[TableRule], schema_valid: bool, producer: RedpandaProducer
-    ) -> int:
-        return sum(
-            self.rule_evaluator.evaluate(rule, schema_valid, producer) for rule in rules
-        )
+            if not schema_valid:
+                logger.warning(
+                    f"Schema validation failed for table '{rule.table}'. "
+                    f"All other rules marked as failed without execution."
+                )
+
+        return total_messages
+
+    def _validate_schema_for_rule(
+        self, rule: TableRule, producer: RedpandaProducer
+    ) -> tuple[bool, int]:
+        """Проверяет schema для правила. Возвращает (валидна ли схема, количество сообщений)"""
+        if any(e.type == "schema" for e in rule.expectations):
+            return self.schema_validator.validate(rule, producer)
+        # Если нет проверки schema - считаем что схема валидна
+        return True, 0
 
 
 class MessageConsumer:
@@ -197,8 +178,7 @@ class KafkaService:
 
     def create_producer(self) -> RedpandaProducer:
         return RedpandaProducer(
-            bootstrap_servers=self.bootstrap_servers,
-            topic=self.topic_config.topic_name,
+            bootstrap_servers=self.bootstrap_servers, topic=self.topic_config.topic_name
         )
 
     def consume_messages(
@@ -211,29 +191,24 @@ class RunProcess:
     def __init__(self, infra_path: Path, rules_path: Path) -> None:
         self.rule_config = RuleConfig.load(infra_path, rules_path)
         self.kafka_config = KafkaRuntimeConfig.create_with_random_names()
-
         factory = ClickHouseFactory(self.rule_config.clickhouse)
         self.repository = ClickHouseRepository(
             factory=factory, rule_config=self.rule_config
         )
         self.repository.ensure_schema_output()
-
         self.rule_processor = RuleProcessor(self.repository)
         self.kafka_service = KafkaService(
-            self.rule_config.kafka.bootstrap_servers,
-            self.kafka_config,
+            self.rule_config.kafka.bootstrap_servers, self.kafka_config
         )
 
     def execute(self) -> None:
         try:
             self.kafka_service.setup()
             producer = self.kafka_service.create_producer()
-
             total_messages = self.rule_processor.process(
                 self.rule_config.rules, producer
             )
             logger.info(f"Sent {total_messages} quality check results")
-
             self.kafka_service.consume_messages(self.repository, total_messages)
             logger.info("Pipeline completed successfully")
         finally:

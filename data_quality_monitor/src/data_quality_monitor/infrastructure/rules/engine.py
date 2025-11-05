@@ -61,47 +61,13 @@ def range_check(frame: pd.DataFrame, expectation: Expectation) -> RuleResult:
 
 def schema(frame: pd.DataFrame, expectation: Expectation) -> RuleResult:
     expected = expectation.params.get("columns", {})
-    actual_schema = expectation.params.get("_actual_schema", {})
-
-    if not actual_schema:
-        missing = [col for col in expected if col not in frame.columns]
-        extra = [col for col in frame.columns if col not in expected]
-        return RuleResult(
-            rule="schema",
-            passed=not missing and not extra,
-            details={
-                "missing": missing,
-                "extra": extra,
-                "warning": "Type checking skipped - schema not provided",
-            },
-        )
-
-    missing = [col for col in expected if col not in actual_schema]
-    extra = [col for col in actual_schema if col not in expected]
-
-    type_mismatches = []
-    for col, expected_type in expected.items():
-        if col in actual_schema:
-            actual_type = actual_schema[col]
-            normalized = actual_type
-            for wrapper in ["Nullable(", "LowCardinality("]:
-                if wrapper in normalized:
-                    normalized = normalized.replace(wrapper, "").rstrip(")")
-
-            if normalized != expected_type:
-                type_mismatches.append(
-                    {"column": col, "expected": expected_type, "actual": actual_type}
-                )
-
-    passed = not missing and not extra and not type_mismatches
+    missing = [col for col in expected if col not in frame.columns]
+    extra = [col for col in frame.columns if col not in expected]
+    passed = not missing and not extra
     return RuleResult(
         rule="schema",
         passed=passed,
-        details={
-            "missing": missing,
-            "extra": extra,
-            "type_mismatches": type_mismatches,
-        },
+        details={"missing": missing, "extra": extra},
     )
 
 
