@@ -150,3 +150,18 @@ class ClickHouseRepository:
         except Exception as e:
             logger.error("Failed to list reports: {}", e)
             return pd.DataFrame()
+
+    def get_table_schema(self, table: str) -> dict[str, str]:
+        table_name = table.split(".")[-1]
+        database = table.split(".")[0] if "." in table else self.database
+
+        query = f"""
+            SELECT name, type
+            FROM system.columns
+            WHERE database = '{database}' AND table = '{table_name}'
+            ORDER BY name
+        """
+        result = self.client.query(query)
+        schema = {row[0]: row[1] for row in result.result_rows}
+        logger.debug("Fetched schema for {}: {}", table, schema)
+        return schema

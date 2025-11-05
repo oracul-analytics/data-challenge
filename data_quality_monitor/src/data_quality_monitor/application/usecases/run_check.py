@@ -9,6 +9,7 @@ from data_quality_monitor.infrastructure.rules import engine
 from data_quality_monitor.infrastructure.adapters.redpanda_producer import (
     RedpandaProducer,
 )
+from data_quality_monitor.domain.models.rule import Expectation
 from data_quality_monitor.infrastructure.adapters.redpanda_consumer import (
     RedpandaConsumer,
 )
@@ -73,8 +74,17 @@ class SchemaValidator:
         if not expectations:
             return True, 0
 
+        actual_schema = self.repository.get_table_schema(rule.table)
+
+        enriched_expectations = []
+        for exp in expectations:
+            enriched_params = {**exp.params, "_actual_schema": actual_schema}
+            enriched_expectations.append(
+                Expectation(type=exp.type, params=enriched_params)
+            )
+
         report = engine.evaluate(
-            TableRule(table=rule.table, expectations=expectations),
+            TableRule(table=rule.table, expectations=tuple(enriched_expectations)),
             self.repository.fetch_table(rule.table),
         )
         producer.send_report(report)
@@ -206,7 +216,7 @@ class RunProcess:
         self.repository = ClickHouseRepository(
             factory=factory, rule_config=self.rule_config
         )
-        self.repository.ensure_schema()
+        self.repository.ensure_schema_output()
 
         self.rule_processor = RuleProcessor(self.repository)
         self.kafka_service = KafkaService(

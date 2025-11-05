@@ -11,8 +11,6 @@ rules:
         column: value
         min: 0
         max: 1000
-  - table: dq.events
-    expectations:
       - type: schema
         columns:
           event_id: UInt64

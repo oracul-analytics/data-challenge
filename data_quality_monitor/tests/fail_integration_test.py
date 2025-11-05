@@ -1,14 +1,15 @@
 import pandas as pd
 from datetime import datetime, timedelta
 from pathlib import Path
-from data_quality_monitor.infrastructure.rules import engine
+from loguru import logger
+import sys
+
+from data_quality_monitor.application.usecases.run_check import RunProcess
+from data_quality_monitor.infrastructure.config import RuleConfig
+from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import (
     ClickHouseRepository,
 )
-from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
-from data_quality_monitor.infrastructure.config import RuleConfig
-from loguru import logger
-import sys
 
 logger.remove()
 logger.add(sys.stderr, level="INFO")
@@ -18,9 +19,10 @@ INFRA_PATH = CONFIG_DIR / "infrastructure.yaml"
 RULES_PATH = CONFIG_DIR / "rules.yaml"
 
 
-def test_rules_yaml_failures():
+def test_rules_yaml_failures_via_usecases():
     config = RuleConfig.load(INFRA_PATH, RULES_PATH)
     logger.info("✓ Loaded config from {} and {}", INFRA_PATH, RULES_PATH)
+
     factory = ClickHouseFactory(config.clickhouse)
     repo = ClickHouseRepository(factory=factory, rule_config=config)
 
@@ -35,7 +37,6 @@ def test_rules_yaml_failures():
 
     num_rows = 1000
     start_time = datetime(2025, 11, 4, 0, 0, 0)
-
     events_data = pd.DataFrame(
         {
             "event_id": [i % 100 for i in range(num_rows)],
@@ -45,22 +46,13 @@ def test_rules_yaml_failures():
             "ts": [start_time + timedelta(seconds=i) for i in range(num_rows)],
         }
     )
-
     repo.insert_events(events_data)
     logger.info(
         "✓ Inserted {} faulty events (with intentional rule violations)", num_rows
     )
 
-    for rule in config.rules:
-        frame = repo.fetch_table(rule.table)
-        report = engine.evaluate(rule, frame)
-
-        logger.info("\n=== Report for {} ===", rule.table)
-        for result in report.results:
-            status = "✓ PASSED" if result.passed else "✗ FAILED"
-            logger.info("{:<8} {:<25} Details: {}", status, result.rule, result.details)
-
-        repo.save_report(report)
+    run_process = RunProcess(INFRA_PATH, RULES_PATH)
+    run_process.execute()
 
     reports = repo.list_reports()
     logger.info("\n=== Saved Reports ===")
@@ -92,4 +84,4 @@ def test_rules_yaml_failures():
 
 
 if __name__ == "__main__":
-    test_rules_yaml_failures()
+    test_rules_yaml_failures_via_usecases()

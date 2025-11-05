@@ -1,18 +1,15 @@
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from data_quality_monitor.infrastructure.rules import engine
+import sys
+from loguru import logger
+
+from data_quality_monitor.application.usecases.run_check import RunProcess
+from data_quality_monitor.infrastructure.config import RuleConfig
+from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import (
     ClickHouseRepository,
 )
-import pytest
-from datetime import datetime, timezone
-from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
-from data_quality_monitor.infrastructure.config import RuleConfig
-from data_quality_monitor.domain.models.result import QualityReport, RuleResult
-from data_quality_monitor.domain.repository.clickhouse import ClickHouseRepositoryDomain
-import sys
-from loguru import logger
 
 logger.remove()
 logger.add(sys.stderr, level="INFO")
@@ -22,62 +19,58 @@ INFRA_PATH = CONFIG_DIR / "infrastructure.yaml"
 RULES_PATH = CONFIG_DIR / "rules.yaml"
 
 
-def test_rules_yaml_failures():
+def test_all_rules_fail_in_reports():
     config = RuleConfig.load(INFRA_PATH, RULES_PATH)
     logger.info("✓ Loaded config from {} and {}", INFRA_PATH, RULES_PATH)
-
     factory = ClickHouseFactory(config.clickhouse)
     repo = ClickHouseRepository(factory=factory, rule_config=config)
-    domain_repo = ClickHouseRepositoryDomain(repo.client, repo.database)
+    repo.ensure_schema_output()
+    try:
+        repo.client.command("TRUNCATE TABLE dq.events")
+        repo.client.command("TRUNCATE TABLE dq.reports")
+        logger.info("✓ Cleared events and reports tables")
+    except Exception as e:
+        logger.warning("Could not truncate tables: {}", e)
 
     repo.client.command(f"""
         CREATE TABLE IF NOT EXISTS {repo.database}.events (
-            event_id String,
+            event_id String,           -- намеренно неверный тип
             value Nullable(Float64),
             ts DateTime
         ) ENGINE = MergeTree()
         ORDER BY ts
     """)
-    domain_repo.truncate_table(f"{repo.database}.events")
-    domain_repo.truncate_table(f"{repo.database}.reports")
-    logger.info("✗ Created intentionally faulty schema (event_id as String)")
+    logger.info("✗ Created events table with intentionally faulty schema")
 
-    # Здесь мы говорим pytest, что ожидаем AssertionError
-    with pytest.raises(AssertionError, match="Schema validation failed"):
-        for rule in config.rules:
-            schema_expectation = next(
-                (e for e in rule.expectations if e.type == "schema"), None
+    num_rows = 100
+    start_time = datetime(2025, 11, 4, 0, 0, 0)
+    events_data = pd.DataFrame(
+        {
+            "event_id": [str(i) for i in range(num_rows)],  # String вместо Int
+            "value": [None if i % 10 == 0 else float(i) for i in range(num_rows)],
+            "ts": [start_time + timedelta(seconds=i) for i in range(num_rows)],
+        }
+    )
+    repo.insert_events(events_data)
+    logger.info("✓ Inserted {} test events", num_rows)
+
+    run_process = RunProcess(INFRA_PATH, RULES_PATH)
+    run_process.execute()
+
+    reports = repo.list_reports()
+    logger.info("Total reports saved: {}", len(reports))
+
+    failed = reports[reports["passed"] != 0]
+    if not failed.empty:
+        logger.error("Some rules unexpectedly passed!")
+        for idx, row in failed.iterrows():
+            logger.error(
+                "Rule '{}' unexpectedly passed (passed={})", row["rule"], row["passed"]
             )
-            if schema_expectation:
-                frame = repo.fetch_table(rule.table)
-                schema_result = engine.schema(frame, schema_expectation)
+        raise AssertionError("Expected all rules to fail (passed == 0).")
 
-                if not schema_result.passed:
-                    logger.error(
-                        "✗ Schema FAILED for table '{}'. All other rules automatically failed.",
-                        rule.table,
-                    )
-                    failed_results = [
-                        RuleResult(
-                            rule=f"{e.type}:{e.params.get('column', '')}",
-                            passed=False,
-                            details={"reason": "Skipped due to schema failure"},
-                        )
-                        for e in rule.expectations
-                        if e.type != "schema"
-                    ]
-
-                    report = QualityReport(
-                        table=rule.table,
-                        generated_at=datetime.now(timezone.utc),
-                        results=(schema_result, *failed_results),
-                    )
-
-                    repo.save_report(report)
-                    raise AssertionError(
-                        f"Schema validation failed for table '{rule.table}'. All rules marked as FAILED."
-                    )
+    logger.info("✓ All rules failed as expected in reports.")
 
 
 if __name__ == "__main__":
-    test_rules_yaml_failures()
+    test_all_rules_fail_in_reports()
