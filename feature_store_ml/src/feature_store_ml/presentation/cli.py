@@ -41,6 +41,13 @@ def materialize(config: Path = typer.Option(..., exists=True)) -> None:
 
 
 @app.command()
+def dry_run(config: Path = typer.Option(..., exists=True)) -> None:
+    cfg, repository, registry, trainer = _bootstrap(config)
+    use_case = MaterializeFeatures(repository=repository, registry=registry)
+    use_case.dry_run(lookback_hours=cfg.features.lookback_hours)
+
+
+@app.command()
 def train(config: Path = typer.Option(..., exists=True)) -> None:
     cfg, repository, registry, trainer = _bootstrap(config)
     dataset_builder = DatasetBuilder(registry=registry)

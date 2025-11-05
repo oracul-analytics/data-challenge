@@ -65,57 +65,23 @@ FROM numbers(15000)
 
 
 
-
-
-CREATE TABLE IF NOT EXISTS feature_store.production_events
+CREATE TABLE results
 (
-    `timestamp` DateTime,
-    `entity_id` String,
-    `event_time` DateTime,
-    `value` Float64,
-    `attribute` Float64,
-    `event_type` String,
-    `session_id` String,
-    INDEX idx_entity_id entity_id TYPE bloom_filter GRANULARITY 1,
-    INDEX idx_event_type event_type TYPE bloom_filter GRANULARITY 1,
-    INDEX idx_timestamp timestamp TYPE minmax GRANULARITY 1
-)
-ENGINE = MergeTree
-PARTITION BY toYYYYMM(timestamp)
-ORDER BY (entity_id, timestamp)
-TTL timestamp + toIntervalDay(90)
-SETTINGS index_granularity = 8192
-
-
-
-
-
-INSERT INTO feature_store.production_events SELECT
-    timestamp,
-    entity_id,
-    event_time,
-    value,
-    attribute,
-    event_type,
-    session_id
-FROM feature_store.events
-WHERE timestamp >= (now() - toIntervalHour(24))
-LIMIT 1000
-
-
-
-
-CREATE TABLE feature_store.results
-(
-    `entity_id` String,
-    `event_time` DateTime,
-    `value` Float64,
-    `value_mean` Float64,
-    `value_std` Float64,
-    `value_count` Int32,
-    `value_p95` Float64,
-    `attribute_mean` Float64,
-    `feature_timestamp` DateTime
+    `entity_id`            String,
+    `event_time`           DateTime,
+    `value`                Float64,
+    `value_mean`           Float64,
+    `value_std`            Float64,
+    `value_count`          Int32,
+    `value_p95`            Float64,
+    `attribute_mean`       Float64,
+    `feature_timestamp`    DateTime,
+    `is_anomaly`           UInt8 DEFAULT 0,
+    `prediction_timestamp` DateTime,
+    `prediction_score`     Float64,
+    `prediction_label`     UInt8,
+    `materialized_at`      DateTime DEFAULT now()
 )
 ENGINE = MergeTree
 ORDER BY (entity_id, event_time)
+SETTINGS index_granularity = 8192;

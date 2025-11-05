@@ -45,7 +45,7 @@ class ClickHouseRepository:
     def fetch_raw_events(
         self,
         lookback_hours: int,
-        table: str = "production_events",
+        table: str = "results",
         limit: int | None = None,
     ) -> pd.DataFrame:
         cutoff_time = datetime.now() - timedelta(hours=lookback_hours)
@@ -102,16 +102,20 @@ class ClickHouseRepository:
         results = predictions.copy()
         results["materialized_at"] = datetime.now()
 
+        if "is_anomaly" not in results.columns:
+            results["is_anomaly"] = (results["prediction_label"] == 1).astype(int)
+
         key_columns = [
             "entity_id",
             "prediction_score",
             "prediction_label",
+            "is_anomaly",
             "materialized_at",
         ]
+
         feature_cols = [col for col in results.columns if col not in key_columns]
 
-        columns_to_write = key_columns + feature_cols
-        results = results[columns_to_write]
+        results = results[key_columns + feature_cols]
 
         self.client.insert_df(
             table=f"{self.database}.results",
@@ -153,3 +157,39 @@ class ClickHouseRepository:
         """
 
         return self.client.query_df(query)
+
+    def fetch_latest_features(
+        self,
+        table: str = "results",
+        entity_ids: list[str] | None = None,
+    ) -> pd.DataFrame:
+        if entity_ids:
+            entity_list = "','".join(entity_ids)
+            where = f"WHERE entity_id IN ('{entity_list}')"
+        else:
+            where = ""
+
+        query = f"""
+        SELECT 
+            entity_id,
+            event_time,
+            value,
+            value_mean,
+            value_std,
+            value_count,
+            value_p95,
+            attribute_mean,
+            feature_timestamp
+        FROM (
+            SELECT *,
+                ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY feature_timestamp DESC) as rn
+            FROM {self.database}.{table}
+            {where}
+        ) ranked
+        WHERE rn = 1
+        """
+
+        df = self.client.query_df(query)
+
+        logger.info(f"Fetched {len(df)} latest feature rows from {table}")
+        return df
