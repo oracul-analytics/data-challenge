@@ -1,24 +1,29 @@
 from confluent_kafka import Producer
 import json
 from loguru import logger
-from data_quality_monitor.domain.models.result import QualityReport
 import numpy as np
+from data_quality_monitor.domain.models.result import QualityReport
+from data_quality_monitor.domain.payloads.kafka.build_payload import KafkaPayloadBuilder
 
 
-class RedpandaProducer:
+class _KafkaProducerWrapper:
     def __init__(self, bootstrap_servers: str, topic: str):
         self.producer = Producer({"bootstrap.servers": bootstrap_servers})
         self.topic = topic
-        logger.info("Producer initialized with topic: {}", self.topic)
 
-    def delivery_report(self, err, msg):
-        if err:
-            logger.error("Message delivery failed: {}", err)
-        else:
-            logger.info("Message delivered to {} [{}]", msg.topic(), msg.partition())
+    def produce(self, key: str, value: str, callback=None):
+        try:
+            self.producer.produce(self.topic, key=key, value=value, callback=callback)
+        except Exception as e:
+            logger.error("Failed to produce message: {}", e)
 
+    def flush(self):
+        self.producer.flush()
+
+
+class _PayloadSerializer:
     @staticmethod
-    def _to_serializable(obj):
+    def serialize(obj):
         if isinstance(obj, (np.bool_, bool)):
             return bool(obj)
         if isinstance(obj, (np.integer, int)):
@@ -27,31 +32,30 @@ class RedpandaProducer:
             return float(obj)
         return str(obj)
 
+
+class RedpandaProducer:
+    def __init__(self, bootstrap_servers: str, topic: str):
+        self._wrapper = _KafkaProducerWrapper(bootstrap_servers, topic)
+        logger.info("Producer initialized for topic '{}'", topic)
+
+    def _delivery_report(self, err, msg):
+        if err:
+            logger.error("Message delivery failed: {}", err)
+
     def send_report(self, report: QualityReport):
         if not report.results:
             logger.warning("No results to send for report")
             return
 
-        table_name = report.table
-
         for result in report.results:
-            payload = {
-                "table_name": table_name,
-                "rule": result.rule,
-                "passed": bool(result.passed),
-                "details": result.details,
-                "generated_at": report.generated_at.isoformat(),
-            }
+            payload = KafkaPayloadBuilder.build(report, result)
+            serialized = json.dumps(payload, default=_PayloadSerializer.serialize)
+            self._wrapper.produce(key=str(report.table), value=serialized, callback=self._delivery_report)
 
-            try:
-                self.producer.produce(
-                    self.topic,
-                    key=str(table_name),
-                    value=json.dumps(payload, default=self._to_serializable),
-                    callback=self.delivery_report,
-                )
-            except Exception as e:
-                logger.error("Failed to produce message to Redpanda: {}", e)
-
-        self.producer.flush()
-        logger.info("Report sent to Redpanda for table {} on topic {}", table_name, self.topic)
+        self._wrapper.flush()
+        logger.info(
+            "Sent {} results for table '{}' to topic '{}'",
+            len(report.results),
+            report.table,
+            self._wrapper.topic,
+        )

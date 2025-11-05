@@ -1,25 +1,16 @@
 import uuid
 from pathlib import Path
 from dataclasses import dataclass
+
 from confluent_kafka.admin import AdminClient, NewTopic
 from loguru import logger
 
-from data_quality_monitor.infrastructure.adapters.redpanda_producer import (
-    RedpandaProducer,
-)
-from data_quality_monitor.infrastructure.adapters.redpanda_consumer import (
-    RedpandaConsumer,
-)
-from data_quality_monitor.infrastructure.repositories.clickhouse_repository import (
-    ClickHouseRepository,
-)
+from data_quality_monitor.infrastructure.adapters.redpanda_producer import RedpandaProducer
+from data_quality_monitor.infrastructure.adapters.redpanda_consumer import RedpandaConsumer
+from data_quality_monitor.infrastructure.repositories.clickhouse_repository import ClickHouseRepository
 from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
-from data_quality_monitor.infrastructure.config import RuleConfig
-
-from data_quality_monitor.application.use_cases.process_rules import (
-    ProcessRulesUseCase,
-    RuleEvaluator,
-)
+from data_quality_monitor.infrastructure.config import RuleConfig, KafkaTopicConfig, KafkaConsumerConfig, KafkaConfig
+from data_quality_monitor.application.use_cases.process_rules import ProcessRulesUseCase, RuleEvaluator
 
 
 @dataclass
@@ -28,101 +19,76 @@ class KafkaRuntimeConfig:
     group_id: str
 
     @classmethod
-    def create_with_random_names(cls) -> "KafkaRuntimeConfig":
-        return cls(
-            topic_name=f"events_{uuid.uuid4().hex}",
-            group_id=f"dq_monitor_{uuid.uuid4().hex}",
-        )
+    def random(cls) -> "KafkaRuntimeConfig":
+        uid = uuid.uuid4().hex
+        return cls(f"events_{uid}", f"dq_monitor_{uid}")
 
 
 class TopicManager:
-    def __init__(self, bootstrap_servers: str) -> None:
+    def __init__(self, bootstrap_servers: str, topic_config):
         self.admin_client = AdminClient({"bootstrap.servers": bootstrap_servers})
-
-    def create_topic(self, topic_name: str) -> bool:
-        try:
-            fs = self.admin_client.create_topics([NewTopic(topic_name, 1, 1)])
-            for _, f in fs.items():
-                f.result(timeout=10)
-            logger.info(f"Topic created: {topic_name}")
-            return True
-        except Exception as e:
-            logger.warning(f"Topic creation skipped: {e}")
-            return False
-
-    def delete_topic(self, topic_name: str) -> bool:
-        try:
-            fs = self.admin_client.delete_topics([topic_name], operation_timeout=30)
-            for _, f in fs.items():
-                f.result()
-            logger.info(f"Topic deleted: {topic_name}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to delete topic '{topic_name}': {e}")
-            return False
-
-
-class MessageConsumer:
-    def __init__(self, bootstrap_servers: str, topic_config: KafkaRuntimeConfig):
-        self.bootstrap_servers = bootstrap_servers
         self.topic_config = topic_config
 
-    def consume(self, repository: ClickHouseRepository, total_messages: int) -> None:
-        consumer = RedpandaConsumer(
-            bootstrap_servers=self.bootstrap_servers,
-            topic=self.topic_config.topic_name,
-            group_id=self.topic_config.group_id,
-        )
-        try:
-            consumer.consume(
-                callback=repository.save_from_message,
-                max_messages=total_messages,
-                timeout=1.0,
-            )
-            logger.info(f"Successfully consumed {total_messages} messages")
-        finally:
-            consumer.close()
+    def create(self, topic_name: str):
+        topic = NewTopic(topic_name, num_partitions=self.topic_config.partitions, replication_factor=self.topic_config.replication_factor)
+        for _, future in self.admin_client.create_topics([topic]).items():
+            future.result(timeout=self.topic_config.create_timeout_seconds)
+        logger.info(f"Topic created: {topic_name}")
+
+    def delete(self, topic_name: str):
+        for _, future in self.admin_client.delete_topics([topic_name], operation_timeout=self.topic_config.delete_timeout_seconds).items():
+            future.result()
+        logger.info(f"Topic deleted: {topic_name}")
 
 
 class KafkaService:
-    def __init__(self, bootstrap_servers: str, topic_config: KafkaRuntimeConfig):
-        self.bootstrap_servers = bootstrap_servers
-        self.topic_config = topic_config
-        self.topic_manager = TopicManager(bootstrap_servers)
-        self.consumer = MessageConsumer(bootstrap_servers, topic_config)
+    def __init__(self, config: KafkaConfig, runtime: KafkaRuntimeConfig):
+        self.bootstrap_servers = config.bootstrap_servers
+        self.runtime = runtime
+        self.topic_manager = TopicManager(self.bootstrap_servers, config.topic)
+        self.consumer_config = config.consumer
 
-    def setup(self) -> None:
-        self.topic_manager.create_topic(self.topic_config.topic_name)
+    def setup(self):
+        self.topic_manager.create(self.runtime.topic_name)
 
-    def cleanup(self) -> None:
-        self.topic_manager.delete_topic(self.topic_config.topic_name)
+    def cleanup(self):
+        self.topic_manager.delete(self.runtime.topic_name)
 
-    def create_producer(self) -> RedpandaProducer:
-        return RedpandaProducer(bootstrap_servers=self.bootstrap_servers, topic=self.topic_config.topic_name)
+    def producer(self):
+        return RedpandaProducer(bootstrap_servers=self.bootstrap_servers, topic=self.runtime.topic_name)
 
-    def consume_messages(self, repository: ClickHouseRepository, total_messages: int) -> None:
-        self.consumer.consume(repository, total_messages)
+    def consume(self, repository: ClickHouseRepository, total_messages: int):
+        consumer = RedpandaConsumer(
+            bootstrap_servers=self.bootstrap_servers,
+            topic=self.runtime.topic_name,
+            group_id=self.runtime.group_id,
+            timeout_seconds=self.consumer_config.default_timeout_seconds,
+        )
+        consumer.consume(callback=repository.save_from_message, max_messages=total_messages)
+        consumer.close()
 
 
 class RunProcess:
-    def __init__(self, infra_path: Path, rules_path: Path) -> None:
-        self.rule_config = RuleConfig.load(infra_path, rules_path)
-        self.kafka_config = KafkaRuntimeConfig.create_with_random_names()
-        factory = ClickHouseFactory(self.rule_config.clickhouse)
-        self.repository = ClickHouseRepository(factory=factory, rule_config=self.rule_config)
-        self.repository.ensure_schema_output()
-        self.kafka_service = KafkaService(self.rule_config.kafka.bootstrap_servers, self.kafka_config)
-        self.rule_evaluator = RuleEvaluator(self.repository)
+    def __init__(self, infra_path: Path, rules_path: Path):
+        self.config = RuleConfig.load(infra_path, rules_path)
+        self.runtime = KafkaRuntimeConfig.random()
+        self.repository = self._setup_repository()
+        self.kafka_service = KafkaService(self.config.kafka, self.runtime)
         self.rules_use_case = ProcessRulesUseCase(self.repository)
 
-    def execute(self) -> None:
+    def _setup_repository(self):
+        factory = ClickHouseFactory(self.config.clickhouse)
+        repo = ClickHouseRepository(factory=factory, rule_config=self.config)
+        repo.ensure_schema_output()
+        return repo
+
+    def execute(self):
         try:
             self.kafka_service.setup()
-            producer = self.kafka_service.create_producer()
-            total_messages = self.rules_use_case.execute(self.rule_config.rules, producer)
-            logger.info(f"Sent {total_messages} quality check results")
-            self.kafka_service.consume_messages(self.repository, total_messages)
-            logger.info("Pipeline completed successfully")
+            producer = self.kafka_service.producer()
+            total_messages = self.rules_use_case.execute(self.config.rules, producer)
+            self.kafka_service.consume(self.repository, total_messages)
+            logger.debug("Pipeline completed successfully")
         finally:
             self.kafka_service.cleanup()
-            logger.info("Cleanup completed")
+            logger.debug("Cleanup completed")

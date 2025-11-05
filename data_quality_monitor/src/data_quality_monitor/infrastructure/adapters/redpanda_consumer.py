@@ -6,97 +6,83 @@ import signal
 import threading
 
 
-class RedpandaConsumer:
-    def __init__(
-        self,
-        bootstrap_servers: str,
-        topic: str,
-        group_id: str,
-    ):
-        self.config = {
-            "bootstrap.servers": bootstrap_servers,
-            "group.id": group_id,
-            "auto.offset.reset": "earliest",
-            "enable.auto.commit": True,
-        }
-        self.consumer = Consumer(self.config)
+class _KafkaConsumerWrapper:
+    def __init__(self, bootstrap_servers: str, group_id: str, topic: str):
         self.topic = topic
-        self.running = True
-
-        if threading.current_thread() is threading.main_thread():
-            try:
-                signal.signal(signal.SIGINT, self._shutdown)
-                signal.signal(signal.SIGTERM, self._shutdown)
-                logger.debug("Signal handlers registered (main thread).")
-            except Exception as e:
-                logger.warning("Failed to register signal handlers: {}", e)
-        else:
-            logger.debug("Skipping signal registration (not main thread).")
-
-        logger.info(
-            "Consumer initialized with topic: '{}' and group_id: '{}'",
-            self.topic,
-            group_id,
+        self.consumer = Consumer(
+            {
+                "bootstrap.servers": bootstrap_servers,
+                "group.id": group_id,
+                "auto.offset.reset": "earliest",
+                "enable.auto.commit": True,
+            }
         )
 
-    def _shutdown(self, signum=None, frame=None):
-        logger.info("Shutting down consumer (signal received: {})", signum)
-        self.running = False
+    def subscribe(self):
+        self.consumer.subscribe([self.topic])
 
-    def consume(
-        self,
-        callback: Callable[[dict], None],
-        timeout: float = 1.0,
-        max_messages: Optional[int] = None,
-    ):
-        try:
-            self.consumer.subscribe([self.topic])
-            logger.info("Subscribed to topic: {}", self.topic)
-
-            messages_processed = 0
-
-            while self.running:
-                if max_messages and messages_processed >= max_messages:
-                    logger.info("Reached max_messages limit: {}", max_messages)
-                    break
-
-                msg = self.consumer.poll(timeout=timeout)
-
-                if msg is None:
-                    continue
-
-                if msg.error():
-                    logger.error("Consumer error: {}", msg.error())
-                    continue
-
-                try:
-                    value = json.loads(msg.value().decode("utf-8"))
-                    callback(value)
-                    messages_processed += 1
-                    logger.debug(
-                        "Processed message {} of {}",
-                        messages_processed,
-                        max_messages or "∞",
-                    )
-
-                except json.JSONDecodeError as e:
-                    logger.error("Failed to decode message: {}", e)
-                except Exception as e:
-                    logger.error("Error processing message: {}", e)
-
-        except KafkaException as e:
-            logger.error("Kafka exception: {}", e)
-        except Exception as e:
-            logger.exception("Unexpected exception in consumer: {}", e)
-        finally:
-            self.consumer.close()
-            logger.info("Consumer closed cleanly.")
+    def poll(self, timeout: float):
+        return self.consumer.poll(timeout=timeout)
 
     def close(self):
-        """Gracefully stop consuming and close consumer."""
-        self.running = False
         try:
             self.consumer.close()
+            logger.info("Consumer closed")
         except Exception as e:
-            logger.warning("Error while closing consumer: {}", e)
-        logger.info("Consumer manually closed.")
+            logger.warning("Error closing consumer: {}", e)
+
+
+class _MessageProcessor:
+    def __init__(self, consumer: _KafkaConsumerWrapper, timeout_seconds: float = 1.0):
+        self.consumer = consumer
+        self.timeout_seconds = timeout_seconds
+        self.running = True
+
+    def stop(self):
+        self.running = False
+
+    def run(self, callback: Callable[[dict], None], max_messages: Optional[int] = None):
+        messages_processed = 0
+        while self.running:
+            if max_messages and messages_processed >= max_messages:
+                break
+
+            msg = self.consumer.poll(self.timeout_seconds)
+            if msg is None:
+                continue
+
+            if msg.error():
+                logger.error("Consumer error: {}", msg.error())
+                continue
+
+            try:
+                value = json.loads(msg.value().decode("utf-8"))
+                callback(value)
+                messages_processed += 1
+            except Exception as e:
+                logger.error("Failed to process message: {}", e)
+
+
+class _SignalHandler:
+    @staticmethod
+    def register(processor: _MessageProcessor):
+        if threading.current_thread() is not threading.main_thread():
+            return
+        signal.signal(signal.SIGINT, lambda s, f: processor.stop())
+        signal.signal(signal.SIGTERM, lambda s, f: processor.stop())
+
+
+class RedpandaConsumer:
+    def __init__(self, bootstrap_servers: str, topic: str, group_id: str, timeout_seconds: float = 1.0):
+        self._consumer_wrapper = _KafkaConsumerWrapper(bootstrap_servers, group_id, topic)
+        self._processor = _MessageProcessor(self._consumer_wrapper, timeout_seconds)
+        _SignalHandler.register(self._processor)
+
+    def consume(self, callback: Callable[[dict], None], max_messages: Optional[int] = None):
+        self._consumer_wrapper.subscribe()
+        self._processor.run(callback, max_messages)
+        self.close()
+
+    def close(self):
+        self._processor.stop()
+        self._consumer_wrapper.close()

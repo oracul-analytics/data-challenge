@@ -7,3 +7,11 @@ clickhouse:
 
 kafka:
   bootstrap_servers: localhost:39092
+  topic:
+    partitions: 1
+    replication_factor: 1
+    create_timeout_seconds: 10
+    delete_timeout_seconds: 30
+
+  consumer:
+    default_timeout_seconds: 1.0
