@@ -8,6 +8,7 @@ class Expectation:
     Описывает одно правило проверки данных.
     Например: Expectation("completeness", {"column": "value", "threshold": 1.0})
     """
+
     type: str
     params: Dict[str, Any]
 
@@ -17,6 +18,7 @@ class RuleResult:
     """
     Результат проверки одного Expectation.
     """
+
     expectation: Expectation
     passed: bool
     details: Dict[str, Any] = field(default_factory=dict)
@@ -27,6 +29,7 @@ class TableRule:
     """
     Правила, применяемые к таблице (DataFrame).
     """
+
     table: str
     expectations: Tuple[Expectation, ...]
 
@@ -40,5 +43,6 @@ class RuleReport:
     """
     Отчёт по проверкам таблицы.
     """
+
     rule: TableRule
     results: List[RuleResult]

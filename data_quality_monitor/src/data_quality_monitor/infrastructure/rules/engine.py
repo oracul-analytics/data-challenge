@@ -26,11 +26,7 @@ def completeness(frame: pd.DataFrame, expectation: Expectation) -> RuleResult:
 def uniqueness(frame: pd.DataFrame, expectation: Expectation) -> RuleResult:
     column = expectation.params["column"]
     threshold = float(expectation.params.get("threshold", 1.0))
-    ratio = (
-        frame[column].nunique() / len(frame)
-        if column in frame.columns and len(frame)
-        else 0.0
-    )
+    ratio = frame[column].nunique() / len(frame) if column in frame.columns and len(frame) else 0.0
     return RuleResult(
         rule=f"uniqueness:{column}",
         passed=ratio >= threshold,
@@ -42,11 +38,7 @@ def range_check(frame: pd.DataFrame, expectation: Expectation) -> RuleResult:
     column = expectation.params["column"]
     min_value = expectation.params.get("min")
     max_value = expectation.params.get("max")
-    violations = (
-        frame[(frame[column] < min_value) | (frame[column] > max_value)]
-        if column in frame.columns
-        else frame
-    )
+    violations = frame[(frame[column] < min_value) | (frame[column] > max_value)] if column in frame.columns else frame
     passed = len(violations) == 0
     return RuleResult(
         rule=f"range:{column}",

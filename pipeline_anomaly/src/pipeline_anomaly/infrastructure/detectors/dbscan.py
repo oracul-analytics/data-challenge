@@ -23,5 +23,4 @@ class DBSCANDetector(PandasDetector):
 
         features = dataframe[["mean_value", "std_value"]].copy()
         predictions = self._model.fit_predict(features)
-        # -1 обозначает аномалию, приводим к 0/1
         return pd.Series((predictions == -1).astype(int), index=dataframe.index)

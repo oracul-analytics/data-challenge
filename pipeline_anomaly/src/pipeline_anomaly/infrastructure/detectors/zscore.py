@@ -15,12 +15,9 @@ class ZScoreDetector(PandasDetector):
         mean_value - среднее значение за окно
         std_value  - стандартное отклонение за окно
         """
-        # Среднее и стандартное отклонение по агрегатам
         mean = dataframe["mean_value"].mean()
         std = dataframe["std_value"].mean()
 
-        # Z-оценки для каждого агрегата
         z_scores = (dataframe["mean_value"] - mean) / std
 
-        # Возвращаем бинарную серию, где 1 = аномалия
         return (z_scores.abs() > self._threshold).astype(int)

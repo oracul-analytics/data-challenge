@@ -21,7 +21,12 @@ starlette = ">=0.40.0,<0.50.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2"
+vulture = "^2.14"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 140
+select = ["E", "F", "W", "C90"]

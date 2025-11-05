@@ -1,4 +1,3 @@
-from pathlib import Path
 from fastapi import FastAPI
 from starlette.responses import PlainTextResponse
 from prometheus_client import generate_latest
@@ -13,13 +12,8 @@ from data_quality_monitor.infrastructure.repositories.clickhouse_repository impo
     ClickHouseRepository,
 )
 from data_quality_monitor.application.services.runner import QualityRunner
-from data_quality_monitor.application.usecases.run_check import (
-    RunProcess,
-)
-
-CONFIG_DIR = Path(__file__).resolve().parent.parent.parent.parent / "config"
-INFRA_PATH = CONFIG_DIR / "infrastructure.yaml"
-RULES_PATH = CONFIG_DIR / "rules.yaml"
+from data_quality_monitor.application.use_cases.run_check import RunProcess
+from data_quality_monitor.infrastructure.constants import INFRA_PATH, RULES_PATH
 
 app = FastAPI(title="Data Quality Monitor")
 app.add_middleware(PrometheusMiddleware)
@@ -28,9 +22,8 @@ app.add_middleware(PrometheusMiddleware)
 @app.on_event("startup")
 def bootstrap() -> None:
     app.state.config = RuleConfig.load(INFRA_PATH, RULES_PATH)
-
     factory = ClickHouseFactory(app.state.config.clickhouse)
-    repository = ClickHouseRepository(factory=factory)
+    repository = ClickHouseRepository(factory=factory, rule_config=app.state.config)
     repository.ensure_schema()
     app.state.runner = QualityRunner(repository)
 
@@ -53,6 +46,4 @@ def list_reports() -> list[dict[str, object]]:
 
 @app.get("/metrics")
 def metrics() -> PlainTextResponse:
-    return PlainTextResponse(
-        generate_latest(registry), media_type="text/plain; version=0.0.4"
-    )
+    return PlainTextResponse(generate_latest(registry), media_type="text/plain; version=0.0.4")

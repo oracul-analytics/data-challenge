@@ -15,7 +15,5 @@ class DatasetBuilder:
         target = (frame["label"] > 0).astype(int)
         feature_cols = list(self._registry.feature_names)
         return FeatureDataset(
-            features=features[feature_cols], 
-            labels=target,
-            feature_names=feature_cols
+            features=features[feature_cols], labels=target, feature_names=feature_cols
         )

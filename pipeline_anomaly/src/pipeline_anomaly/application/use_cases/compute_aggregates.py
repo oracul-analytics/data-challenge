@@ -14,7 +14,6 @@ class ComputeAggregates:
         Вычисляет агрегаты за последние 24 часа через ClickHouse
         без загрузки всех событий в память.
         """
-        # Читаем агрегаты напрямую из ClickHouse
         df = self._writer.read_latest_window()
 
         if df.empty:

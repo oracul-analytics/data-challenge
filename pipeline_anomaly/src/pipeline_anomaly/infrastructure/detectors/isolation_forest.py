@@ -16,7 +16,6 @@ class IsolationForestDetector(PandasDetector):
         """
         Используем агрегаты mean_value и std_value как признаки для детекции аномалий.
         """
-        # Проверяем наличие необходимых колонок
         missing = [
             col for col in ["mean_value", "std_value"] if col not in dataframe.columns
         ]

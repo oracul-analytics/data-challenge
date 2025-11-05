@@ -37,8 +37,7 @@ class SchemaValidator:
                 "actual": actual_schema[col],
             }
             for col in expected_columns
-            if col in actual_schema
-            and not self._types_match(expected_columns[col], actual_schema[col])
+            if col in actual_schema and not self._types_match(expected_columns[col], actual_schema[col])
         ]
 
         passed = not missing and not extra and not type_mismatches
@@ -49,12 +48,8 @@ class SchemaValidator:
 
         result = RuleResult(rule="schema", passed=passed, details=details)
 
-        report = QualityReport(
-            table=rule.table, generated_at=datetime.now(timezone.utc), results=(result,)
-        )
+        report = QualityReport(table=rule.table, generated_at=datetime.now(timezone.utc), results=(result,))
         producer.send_report(report)
-        logger.info(
-            f"Schema validation for table '{rule.table}': {'passed' if passed else 'failed'}"
-        )
+        logger.info(f"Schema validation for table '{rule.table}': {'passed' if passed else 'failed'}")
 
         return passed, 1

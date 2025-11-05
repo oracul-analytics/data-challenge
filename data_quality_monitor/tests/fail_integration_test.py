@@ -38,16 +38,12 @@ def test_rules_yaml_failures_via_usecases():
     events_data = pd.DataFrame(
         {
             "event_id": [i % 100 for i in range(num_rows)],
-            "value": [
-                None if i % 50 == 0 else (i % 1200) - 100 for i in range(num_rows)
-            ],
+            "value": [None if i % 50 == 0 else (i % 1200) - 100 for i in range(num_rows)],
             "ts": [start_time + timedelta(seconds=i) for i in range(num_rows)],
         }
     )
     repo.insert_events(events_data)
-    logger.info(
-        "✓ Inserted {} faulty events (with intentional rule violations)", num_rows
-    )
+    logger.info("✓ Inserted {} faulty events (with intentional rule violations)", num_rows)
 
     run_process = RunProcess(INFRA_PATH, RULES_PATH)
     run_process.execute()
@@ -65,18 +61,12 @@ def test_rules_yaml_failures_via_usecases():
             row["passed"],
         )
 
-    non_schema_passed = reports[
-        (reports["passed"] == 1) & (reports["rule"] != "schema")
-    ]
+    non_schema_passed = reports[(reports["passed"] == 1) & (reports["rule"] != "schema")]
     if not non_schema_passed.empty:
         logger.error("\nSome rules (excluding schema) passed, test failed!")
         for idx, row in non_schema_passed.iterrows():
-            logger.error(
-                "Rule '{}' passed on table '{}'", row["rule"], row["table_name"]
-            )
-        raise AssertionError(
-            "Expected all rules (except schema) to fail, but some passed!"
-        )
+            logger.error("Rule '{}' passed on table '{}'", row["rule"], row["table_name"])
+        raise AssertionError("Expected all rules (except schema) to fail, but some passed!")
 
     logger.info("\nAll rules failed as expected (excluding schema). Test successful.")
 

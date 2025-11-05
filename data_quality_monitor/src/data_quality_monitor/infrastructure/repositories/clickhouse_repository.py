@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import pandas as pd
-from loguru import logger
-
 from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
 from data_quality_monitor.domain.models.result import QualityReport
 from data_quality_monitor.infrastructure.config import RuleConfig
@@ -22,9 +20,7 @@ class ClickHouseRepository:
             table_name = table_rule.table.split(".")[-1]
             schema_columns = self._extract_schema_columns(table_rule.expectations)
             if schema_columns:
-                columns_ddl = ",\n".join(
-                    f"{name} {dtype}" for name, dtype in schema_columns.items()
-                )
+                columns_ddl = ",\n".join(f"{name} {dtype}" for name, dtype in schema_columns.items())
                 ddl = f"""
                 CREATE TABLE IF NOT EXISTS {self.database}.{table_name} (
                     {columns_ddl}
@@ -32,7 +28,6 @@ class ClickHouseRepository:
                 ORDER BY ts
                 """
                 self.client.command(ddl)
-                logger.info(f"Table schema ensured: {table_name}")
 
     @staticmethod
     def _extract_schema_columns(
@@ -54,19 +49,14 @@ class ClickHouseRepository:
             ) ENGINE = MergeTree()
             ORDER BY generated_at
         """)
-        logger.info("Output schema ensured (reports table created)")
 
     def ensure_schema(self) -> None:
         self.ensure_schema_input()
         self.ensure_schema_output()
-        logger.info("Schema ensured (events and reports tables created)")
 
     def _insert_dataframe(self, table: str, df: pd.DataFrame) -> None:
-        if df.empty:
-            logger.warning("No rows to insert into {}", table)
-            return
-        self.client.insert(f"{self.database}.{table}", df)
-        logger.info("Inserted {} rows into {}", len(df), table)
+        if not df.empty:
+            self.client.insert(f"{self.database}.{table}", df)
 
     def _prepare_report_rows(self, reports: list[QualityReport]) -> pd.DataFrame:
         rows = [
@@ -86,80 +76,41 @@ class ClickHouseRepository:
         self.save_reports([report])
 
     def save_reports(self, reports: list[QualityReport]) -> None:
-        try:
-            df = self._prepare_report_rows(reports)
-            self._insert_dataframe("reports", df)
-        except Exception as e:
-            logger.error("Failed to save reports: {}", e)
-            raise
+        df = self._prepare_report_rows(reports)
+        self._insert_dataframe("reports", df)
 
     def save_from_message(self, message: dict) -> None:
-        try:
-            df = pd.DataFrame(
-                [
-                    {
-                        "table_name": str(message["table_name"]),
-                        "rule": str(message["rule"]),
-                        "passed": int(message["passed"]),
-                        "details": str(message.get("details", "")),
-                        "generated_at": pd.Timestamp(message["generated_at"]),
-                    }
-                ]
-            )
-            self._insert_dataframe("reports", df)
-            logger.debug(
-                "Saved from Kafka: table={}, rule={}",
-                message["table_name"],
-                message["rule"],
-            )
-        except Exception as e:
-            logger.error("Failed to save from Kafka: {}", e)
-            raise
+        df = pd.DataFrame(
+            [
+                {
+                    "table_name": str(message["table_name"]),
+                    "rule": str(message["rule"]),
+                    "passed": int(message["passed"]),
+                    "details": str(message.get("details", "")),
+                    "generated_at": pd.Timestamp(message["generated_at"]),
+                }
+            ]
+        )
+        self._insert_dataframe("reports", df)
 
     def insert_events(self, events: pd.DataFrame) -> None:
-        try:
-            df = events.copy()
-
-            if "event_id" in df.columns:
-                df["event_id"] = df["event_id"].astype("uint64")
-
-            if "value" in df.columns:
-                df["value"] = df["value"].astype("Float64")
-
-            self._insert_dataframe("events", df)
-            null_count = df["value"].isna().sum() if "value" in df.columns else 0
-            logger.info(
-                "✓ Inserted {} events ({} with NULL values)", len(df), null_count
-            )
-        except Exception as e:
-            logger.error("❌ Failed to insert events: {}", e)
-            raise
+        df = events.copy()
+        if "event_id" in df.columns:
+            df["event_id"] = df["event_id"].astype("uint64")
+        if "value" in df.columns:
+            df["value"] = df["value"].astype("Float64")
+        self._insert_dataframe("events", df)
 
     def fetch_table(self, table_name: str) -> pd.DataFrame:
-        full_table_name = (
-            table_name if "." in table_name else f"{self.database}.{table_name}"
-        )
-        try:
-            df = self.client.query_df(f"SELECT * FROM {full_table_name}")
-            logger.debug("Fetched {} rows from {}", len(df), full_table_name)
-            return df
-        except Exception as e:
-            logger.error("Failed to fetch table {}: {}", table_name, e)
-            return pd.DataFrame()
+        full_table_name = table_name if "." in table_name else f"{self.database}.{table_name}"
+        return self.client.query_df(f"SELECT * FROM {full_table_name}")
 
     def list_reports(self) -> pd.DataFrame:
-        try:
-            return self.client.query_df(
-                f"SELECT * FROM {self.database}.reports ORDER BY generated_at DESC"
-            )
-        except Exception as e:
-            logger.error("Failed to list reports: {}", e)
-            return pd.DataFrame()
+        return self.client.query_df(f"SELECT * FROM {self.database}.reports ORDER BY generated_at DESC")
 
     def get_table_schema(self, table: str) -> dict[str, str]:
         table_name = table.split(".")[-1]
         database = table.split(".")[0] if "." in table else self.database
-
         query = f"""
             SELECT name, type
             FROM system.columns
@@ -167,6 +118,4 @@ class ClickHouseRepository:
             ORDER BY name
         """
         result = self.client.query(query)
-        schema = {row[0]: row[1] for row in result.result_rows}
-        logger.debug("Fetched schema for {}: {}", table, schema)
-        return schema
+        return {row[0]: row[1] for row in result.result_rows}

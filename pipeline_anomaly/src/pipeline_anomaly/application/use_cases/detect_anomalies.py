@@ -23,19 +23,15 @@ class DetectAnomalies:
         """
         Генерирует отчет по аномалиям на основе последних агрегатов.
         """
-        # Получаем агрегаты за последний день
         dataframe = self._writer.read_latest_window()
         if dataframe.empty:
             raise RuntimeError("No aggregates available to detect anomalies")
 
-        # Берем минимальное и максимальное время из агрегатов
         window_start = dataframe["window_start"].min()
         window_end = dataframe["window_end"].max()
 
-        # Детектим аномалии по каждому детектору
         anomalies: list[Anomaly] = []
         for detector in self._detectors:
-            # В детекторах ожидается dataframe с колонками 'count', 'mean_value', 'std_value'
             scores = detector.fit_predict(dataframe)
             severity = detector.severity(scores)
             anomalies.append(
@@ -44,12 +40,11 @@ class DetectAnomalies:
                     score=float(scores.mean()),
                     severity=float(severity),
                     description=f"{detector.name} severity={severity:.3f}",
-                    window_start=window_start,  # добавляем временные рамки
+                    window_start=window_start,
                     window_end=window_end,
                 )
             )
 
-        # Формируем отчет
         report = AnomalyReport(
             generated_at=datetime.utcnow(),
             window_start=window_start,
@@ -57,7 +52,6 @@ class DetectAnomalies:
             anomalies=tuple(anomalies),
         )
 
-        # Сохраняем отчет в ClickHouse
         self._writer.persist_report(report)
         return report
 

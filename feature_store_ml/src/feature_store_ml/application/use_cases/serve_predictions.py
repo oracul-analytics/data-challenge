@@ -72,7 +72,6 @@ class ServePredictions:
             }
         )
 
-        # Add ClickHouse-compatible anomaly column
         results["is_anomaly"] = results["prediction_label"]
 
         n_anomalies = results["is_anomaly"].sum()
@@ -129,7 +128,6 @@ class ServePredictions:
         if results.empty:
             return pd.DataFrame()
 
-        # sort by prediction_score
         top_anomalies = results.sort_values("prediction_score", ascending=False).head(
             top_k
         )

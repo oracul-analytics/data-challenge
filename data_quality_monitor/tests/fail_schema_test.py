@@ -66,9 +66,7 @@ def test_all_rules_fail_in_reports():
 
     if not failed.empty:
         for idx, row in failed.iterrows():
-            logger.error(
-                "Rule '{}' unexpectedly passed (passed={})", row["rule"], row["passed"]
-            )
+            logger.error("Rule '{}' unexpectedly passed (passed={})", row["rule"], row["passed"])
         raise AssertionError("Expected all rules to fail (passed == 0).")
 
 

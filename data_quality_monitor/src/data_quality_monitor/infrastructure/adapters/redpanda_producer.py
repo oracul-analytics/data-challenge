@@ -54,6 +54,4 @@ class RedpandaProducer:
                 logger.error("Failed to produce message to Redpanda: {}", e)
 
         self.producer.flush()
-        logger.info(
-            "Report sent to Redpanda for table {} on topic {}", table_name, self.topic
-        )
+        logger.info("Report sent to Redpanda for table {} on topic {}", table_name, self.topic)
