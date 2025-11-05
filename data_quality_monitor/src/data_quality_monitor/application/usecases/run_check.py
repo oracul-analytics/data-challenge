@@ -6,10 +6,10 @@ from confluent_kafka.admin import AdminClient, NewTopic
 from loguru import logger
 
 from data_quality_monitor.infrastructure.rules import engine
-from data_quality_monitor.infrastructure.repositories.redpanda_producer import (
+from data_quality_monitor.infrastructure.adapters.redpanda_producer import (
     RedpandaProducer,
 )
-from data_quality_monitor.infrastructure.repositories.redpanda_consumer import (
+from data_quality_monitor.infrastructure.adapters.redpanda_consumer import (
     RedpandaConsumer,
 )
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import (

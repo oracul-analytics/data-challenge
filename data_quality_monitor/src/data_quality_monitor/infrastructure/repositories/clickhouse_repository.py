@@ -12,7 +12,7 @@ class ClickHouseRepository:
         self.client = factory.create()
         self.database = factory._config.database
 
-    def ensure_schema(self) -> None:
+    def ensure_schema_input(self) -> None:
         self.client.command(f"CREATE DATABASE IF NOT EXISTS {self.database}")
         self.client.command(f"""
             CREATE TABLE IF NOT EXISTS {self.database}.events (
@@ -22,6 +22,9 @@ class ClickHouseRepository:
             ) ENGINE = MergeTree()
             ORDER BY ts
         """)
+        logger.info("Input schema ensured (events table created)")
+
+    def ensure_schema_output(self) -> None:
         self.client.command(f"""
             CREATE TABLE IF NOT EXISTS {self.database}.reports (
                 table_name String,
@@ -32,6 +35,11 @@ class ClickHouseRepository:
             ) ENGINE = MergeTree()
             ORDER BY generated_at
         """)
+        logger.info("Output schema ensured (reports table created)")
+
+    def ensure_schema(self) -> None:
+        self.ensure_schema_input()
+        self.ensure_schema_output()
         logger.info("Schema ensured (events and reports tables created)")
 
     def _insert_dataframe(self, table: str, df: pd.DataFrame) -> None:
