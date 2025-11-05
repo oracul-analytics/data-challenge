@@ -17,18 +17,21 @@ class ServePredictions:
         repository: ClickHouseRepository,
         trainer: LightGBMTrainer,
         threshold: float = 0.5,
+        features_table: str = "materialized_features",
     ) -> None:
         self._repository = repository
         self._trainer = trainer
         self._threshold = threshold
+        self._features_table = features_table
 
     def _align_features(self, features: pd.DataFrame) -> pd.DataFrame:
         model, meta = self._trainer.load()
         expected_features = meta["features"]
 
-        for col in ["entity_id", "feature_timestamp", "event_time"]:
-            if col in features.columns:
-                features = features.drop(columns=[col])
+        metadata_columns = ["entity_id", "feature_timestamp", "event_time"]
+        features = features.drop(
+            columns=[col for col in metadata_columns if col in features.columns]
+        )
 
         for col in expected_features:
             if col not in features.columns:
@@ -39,16 +42,8 @@ class ServePredictions:
     def execute(self) -> pd.DataFrame:
         logger.info("Starting prediction serving...")
 
-        logger.info("Loading trained model...")
-        try:
-            self._trainer.load()
-            logger.success("Model loaded successfully")
-        except Exception as e:
-            logger.error(f"Failed to load model: {e}")
-            raise
-
-        logger.info("Fetching latest features from feature store...")
-        features = self._repository.fetch_latest_features()
+        self._load_model()
+        features = self._fetch_features()
 
         if features.empty:
             logger.warning("No features available for prediction")
@@ -57,23 +52,53 @@ class ServePredictions:
         logger.info(f"Fetched features for {len(features)} entities")
 
         X = self._align_features(features.copy())
+        predictions = self._make_predictions(X)
+        results = self._create_results_dataframe(features, predictions)
 
+        self._log_prediction_stats(results, predictions)
+        self._write_predictions(results)
+
+        return results
+
+    def _load_model(self) -> None:
+        logger.info("Loading trained model...")
+        try:
+            self._trainer.load()
+            logger.success("Model loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load model: {e}")
+            raise
+
+    def _fetch_features(self) -> pd.DataFrame:
+        logger.info(
+            f"Fetching latest features from feature_store.{self._features_table}..."
+        )
+        return self._repository.fetch_latest_features(table=self._features_table)
+
+    def _make_predictions(self, X: pd.DataFrame) -> pd.Series:
         logger.info(f"Making predictions on {len(X)} samples...")
-        predictions = self._trainer.predict_proba(X)
+        return self._trainer.predict_proba(X)
+
+    def _create_results_dataframe(
+        self, features: pd.DataFrame, predictions: pd.Series
+    ) -> pd.DataFrame:
         now = datetime.now()
-        results = pd.DataFrame(
+        prediction_labels = (predictions >= self._threshold).astype(int)
+
+        return pd.DataFrame(
             {
                 "entity_id": features["entity_id"],
                 "event_time": now,
                 "prediction_timestamp": now,
                 "prediction_score": predictions,
-                "prediction_label": (predictions >= self._threshold).astype(int),
-                "is_anomaly": (predictions >= self._threshold).astype(int),
+                "prediction_label": prediction_labels,
+                "is_anomaly": prediction_labels,
             }
         )
 
-        results["is_anomaly"] = results["prediction_label"]
-
+    def _log_prediction_stats(
+        self, results: pd.DataFrame, predictions: pd.Series
+    ) -> None:
         n_anomalies = results["is_anomaly"].sum()
         anomaly_rate = n_anomalies / len(results) * 100
 
@@ -83,42 +108,54 @@ class ServePredictions:
         logger.info(f"Average anomaly score: {predictions.mean():.4f}")
         logger.info(f"Max anomaly score: {predictions.max():.4f}")
 
+    def _write_predictions(self, results: pd.DataFrame) -> None:
         logger.info("Writing predictions to ClickHouse...")
         self._repository.write_predictions(results)
         logger.success(f"Served {len(results)} predictions")
 
-        return results
-
     def predict_single(self, entity_id: str) -> dict[str, float | bool]:
         logger.info(f"Making prediction for entity: {entity_id}")
 
-        if not hasattr(self._trainer, "_model") or self._trainer._model is None:
-            self._trainer.load()
-
-        features = self._repository.fetch_features(entity_ids=[entity_id])
+        self._ensure_model_loaded()
+        features = self._fetch_entity_features(entity_id)
 
         if features.empty:
             logger.warning(f"No features found for entity: {entity_id}")
             return {"anomaly_score": 0.0, "is_anomaly": False}
 
-        latest = features.sort_values("feature_timestamp", ascending=False).iloc[0]
-
-        X = self._align_features(latest.to_frame().T)
-
-        score = self._trainer.predict_proba(X)[0]
-
-        result = {
-            "entity_id": entity_id,
-            "anomaly_score": float(score),
-            "is_anomaly": bool(score >= self._threshold),
-            "prediction_timestamp": datetime.now().isoformat(),
-        }
+        latest_features = self._get_latest_features(features)
+        score = self._predict_score(latest_features)
+        result = self._format_prediction_result(entity_id, score)
 
         logger.info(
             f"Prediction for {entity_id}: score={score:.4f}, anomaly={result['is_anomaly']}"
         )
 
         return result
+
+    def _ensure_model_loaded(self) -> None:
+        if not hasattr(self._trainer, "_model") or self._trainer._model is None:
+            self._trainer.load()
+
+    def _fetch_entity_features(self, entity_id: str) -> pd.DataFrame:
+        return self._repository.fetch_latest_features(
+            table=self._features_table, entity_ids=[entity_id]
+        )
+
+    def _get_latest_features(self, features: pd.DataFrame) -> pd.DataFrame:
+        return features.sort_values("feature_timestamp", ascending=False).iloc[0]
+
+    def _predict_score(self, latest_features: pd.Series) -> float:
+        X = self._align_features(latest_features.to_frame().T)
+        return self._trainer.predict_proba(X)[0]
+
+    def _format_prediction_result(self, entity_id: str, score: float) -> dict:
+        return {
+            "entity_id": entity_id,
+            "anomaly_score": float(score),
+            "is_anomaly": bool(score >= self._threshold),
+            "prediction_timestamp": datetime.now().isoformat(),
+        }
 
     def get_top_anomalies(self, top_k: int = 10) -> pd.DataFrame:
         logger.info(f"Fetching top {top_k} anomalies...")

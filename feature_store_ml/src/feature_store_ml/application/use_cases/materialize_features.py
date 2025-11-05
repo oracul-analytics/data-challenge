@@ -3,6 +3,7 @@ from __future__ import annotations
 import pickle
 from pathlib import Path
 
+import lightgbm as lgb
 import pandas as pd
 from loguru import logger
 
@@ -94,26 +95,20 @@ class MaterializeFeatures:
             )
 
         X = features[feature_cols].copy()
-
         X = X.fillna(0)
 
         logger.info(f"Predicting on {len(X)} records with shape {X.shape}")
 
-        import lightgbm as lgb
-
         if isinstance(self._model, lgb.Booster):
             logger.info("Using Booster.predict() for raw predictions")
             raw_predictions = self._model.predict(X)
-
             threshold = 0.5
             predictions = (raw_predictions > threshold).astype(int)
             prediction_scores = raw_predictions
-
         elif hasattr(self._model, "predict_proba"):
             logger.info("Using predict_proba() for probability predictions")
             predictions = self._model.predict(X)
             prediction_scores = self._model.predict_proba(X)[:, 1]
-
         else:
             raise ValueError(f"Unsupported model type: {type(self._model)}")
 
@@ -131,7 +126,9 @@ class MaterializeFeatures:
 
         return features_with_predictions
 
-    def execute(self, lookback_hours: int = 168, output_table: str = "results") -> None:
+    def execute(
+        self, lookback_hours: int = 168, output_table: str = "materialized_features"
+    ) -> None:
         logger.info(f"Starting feature materialization with lookback={lookback_hours}h")
 
         logger.info("Loading raw events from feature_store.inputs...")
