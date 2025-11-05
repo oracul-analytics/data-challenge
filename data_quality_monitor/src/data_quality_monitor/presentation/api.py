@@ -7,7 +7,7 @@ from data_quality_monitor.infrastructure.adapters.metrics import (
     PrometheusMiddleware,
 )
 from data_quality_monitor.infrastructure.config import RuleConfig
-from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
+from data_quality_monitor.domain.factories.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import (
     ClickHouseRepository,
 )

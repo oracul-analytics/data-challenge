@@ -5,7 +5,9 @@ from pathlib import Path
 
 import yaml
 
-from pipeline_anomaly.infrastructure.generators.synthetic_generator import SyntheticDatasetConfig
+from pipeline_anomaly.infrastructure.generators.synthetic_generator import (
+    SyntheticDatasetConfig,
+)
 
 
 @dataclass(slots=True)
@@ -59,7 +61,9 @@ class PipelineConfig:
             dataset=SyntheticDatasetConfig(**raw["dataset"]),
             anomaly_detection=AnomalyDetectionConfig(
                 zscore_threshold=float(raw["anomaly_detection"]["zscore_threshold"]),
-                isolation_forest=IsolationForestConfig(**raw["anomaly_detection"]["isolation_forest"]),
+                isolation_forest=IsolationForestConfig(
+                    **raw["anomaly_detection"]["isolation_forest"]
+                ),
                 dbscan=DBSCANConfig(**raw["anomaly_detection"]["dbscan"]),
             ),
             alerting=AlertingConfig(**raw["alerting"]),

@@ -7,7 +7,9 @@ from clickhouse_connect.driver import Client
 
 
 class ClickHouseFactory:
-    def __init__(self, host: str, port: int, username: str, password: str, database: str) -> None:
+    def __init__(
+        self, host: str, port: int, username: str, password: str, database: str
+    ) -> None:
         self._host = host
         self._port = port
         self._username = username

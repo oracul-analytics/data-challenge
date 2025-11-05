@@ -127,7 +127,9 @@ class MaterializeFeatures:
         return features_with_predictions
 
     def execute(
-        self, lookback_hours: int = 168, output_table: str = "materialized_features"
+        self,
+        lookback_hours: int = 16800000000,
+        output_table: str = "materialized_features",
     ) -> None:
         logger.info(f"Starting feature materialization with lookback={lookback_hours}h")
 
@@ -135,16 +137,72 @@ class MaterializeFeatures:
         raw_data = self._repository.fetch_raw_events(
             lookback_hours=lookback_hours, table="inputs"
         )
-        logger.info(f"Loaded {len(raw_data)} raw events")
+        logger.info(f"✓ Loaded {len(raw_data)} raw events from database")
 
         if raw_data.empty:
             logger.warning("No raw data to process")
             return
 
-        logger.info(f"Computing {len(self._registry.feature_names)} features...")
-        features = self._registry.compute(raw_data)
-        logger.info(f"Computed features for {len(features)} entities")
+        required_features = [
+            "value_mean",
+            "value_std",
+            "value_count",
+            "value_p95",
+            "attribute_mean",
+        ]
+        has_precomputed = all(col in raw_data.columns for col in required_features)
+
+        if has_precomputed:
+            logger.info("✓ Using pre-computed features from inputs table")
+            features = raw_data[
+                ["entity_id", "event_time", "value"] + required_features
+            ].copy()
+            logger.info(f"✓ Selected {len(features)} rows with pre-computed features")
+        else:
+            logger.info(f"Computing {len(self._registry.feature_names)} features...")
+            features = self._registry.compute(raw_data)
+            logger.info(f"✓ Computed features: {len(features)} rows")
+
+        logger.info(f"✓ Checking for missing values...")
+        for col in required_features:
+            null_count = features[col].isna().sum()
+            if null_count > 0:
+                logger.warning(
+                    f"  {col}: {null_count} NULL values ({null_count / len(features) * 100:.1f}%)"
+                )
+
+        features_before_dropna = len(features)
+        features = features.dropna(subset=required_features)
+        dropped = features_before_dropna - len(features)
+        if dropped > 0:
+            logger.warning(f"✗ Dropped {dropped} rows with NULL values")
+
+        logger.info(f"✓ After NULL filtering: {len(features)} rows")
+
+        logger.info(
+            f"Before deduplication: {len(features)} rows, {features['entity_id'].nunique()} unique entities"
+        )
+
+        logger.info(f"After deduplication: {len(features)} rows")
+
+        features = (
+            features.sort_values("event_time", ascending=False)
+            .groupby("entity_id", as_index=False)
+            .first()
+        )
+        logger.info(f"After deduplication: {len(features)} unique entities")
+
         logger.info(f"Feature columns: {list(features.columns)}")
+
+        logger.info("Feature statistics:")
+        for col in required_features:
+            if col in features.columns:
+                logger.info(
+                    f"  {col}: mean={features[col].mean():.2f}, "
+                    f"std={features[col].std():.2f}, "
+                    f"min={features[col].min():.2f}, "
+                    f"max={features[col].max():.2f}"
+                )
 
         if features.empty:
             logger.warning("No features computed")

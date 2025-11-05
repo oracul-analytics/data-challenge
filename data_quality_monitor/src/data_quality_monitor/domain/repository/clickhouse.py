@@ -7,9 +7,7 @@ class ClickHouseRepositoryDomain:
         self.database = database
 
     def drop_table(self, table_name: str) -> None:
-        full_table_name = (
-            table_name if "." in table_name else f"{self.database}.{table_name}"
-        )
+        full_table_name = table_name if "." in table_name else f"{self.database}.{table_name}"
         try:
             self.client.command(f"DROP TABLE IF EXISTS {full_table_name}")
             logger.info("✓ Dropped table {}", full_table_name)

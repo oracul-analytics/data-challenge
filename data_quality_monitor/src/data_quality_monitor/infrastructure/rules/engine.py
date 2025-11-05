@@ -1,9 +1,6 @@
 from __future__ import annotations
-
 from typing import Callable, Mapping
-
 import pandas as pd
-
 from data_quality_monitor.domain.models.rules.result import QualityReport, RuleResult
 from data_quality_monitor.domain.models.rules.rule import Expectation, TableRule
 from datetime import datetime, timezone

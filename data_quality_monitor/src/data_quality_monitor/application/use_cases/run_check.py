@@ -1,13 +1,11 @@
 from pathlib import Path
 from dataclasses import dataclass
-
 from confluent_kafka.admin import AdminClient, NewTopic
 from loguru import logger
-
 from data_quality_monitor.infrastructure.adapters.redpanda_producer import RedpandaProducer
 from data_quality_monitor.infrastructure.adapters.redpanda_consumer import RedpandaConsumer
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import ClickHouseRepository
-from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
+from data_quality_monitor.domain.factories.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.config import RuleConfig, KafkaConfig
 from data_quality_monitor.application.use_cases.process_rules import ProcessRulesUseCase
 from dataclasses import asdict

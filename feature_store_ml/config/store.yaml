@@ -6,7 +6,7 @@ clickhouse:
   password: ""
 
 features:
-  lookback_hours: 24
+  lookback_hours: 240000
   bucket_minutes: 15
   min_records: 1000
 

@@ -50,19 +50,36 @@ class ClickHouseRepository:
     ) -> pd.DataFrame:
         cutoff_time = datetime.now() - timedelta(hours=lookback_hours)
 
-        query = f"""
-        SELECT 
-            timestamp,
-            entity_id,
-            event_time,
-            value,
-            attribute,
-            event_type,
-            session_id
-        FROM {self.database}.{table}
-        WHERE timestamp >= '{cutoff_time.strftime("%Y-%m-%d %H:%M:%S")}'
-        ORDER BY entity_id, event_time
-        """
+        if table == "inputs":
+            query = f"""
+            SELECT 
+                entity_id,
+                event_time,
+                value,
+                value_mean,
+                value_std,
+                value_count,
+                value_p95,
+                attribute_mean,
+                feature_timestamp
+            FROM {self.database}.{table}
+            WHERE timestamp >= '{cutoff_time.strftime("%Y-%m-%d %H:%M:%S")}'
+            ORDER BY entity_id, event_time
+            """
+        else:
+            query = f"""
+            SELECT 
+                timestamp,
+                entity_id,
+                event_time,
+                value,
+                attribute,
+                event_type,
+                session_id
+            FROM {self.database}.{table}
+            WHERE timestamp >= '{cutoff_time.strftime("%Y-%m-%d %H:%M:%S")}'
+            ORDER BY entity_id, event_time
+            """
 
         if limit:
             query += f" LIMIT {limit}"

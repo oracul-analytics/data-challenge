@@ -3,10 +3,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import sys
 from loguru import logger
-
 from data_quality_monitor.application.use_cases.run_check import RunProcess
 from data_quality_monitor.infrastructure.config import RuleConfig
-from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
+from data_quality_monitor.domain.factories.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import (
     ClickHouseRepository,
 )

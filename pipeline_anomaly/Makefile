@@ -13,7 +13,7 @@ infra-down:
 	docker compose down -v
 
 pipeline:
-	$(PYTHON) -m pipeline_anomaly.presentation.cli run --config config/pipeline.yaml
+	$(PYTHON) -m pipeline_anomaly.presentation.cli --config config/pipeline.yaml
 
 pipeline-%:
 	$(PYTHON) -m pipeline_anomaly.presentation.cli run --config config/$*.yaml

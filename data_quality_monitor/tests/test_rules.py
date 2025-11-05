@@ -5,7 +5,7 @@ from data_quality_monitor.infrastructure.rules import engine
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import (
     ClickHouseRepository,
 )
-from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
+from data_quality_monitor.domain.factories.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.config import RuleConfig
 from loguru import logger
 import sys
@@ -82,9 +82,7 @@ def test_rules_yaml_direct():
             row["passed"],
         )
 
-    assert len(reports) == total_checks, (
-        f"Expected {total_checks} reports, got {len(reports)}"
-    )
+    assert len(reports) == total_checks, f"Expected {total_checks} reports, got {len(reports)}"
     assert all(reports["passed"] == 1), "Some checks failed"
     assert all_passed, "Not all checks passed"
 

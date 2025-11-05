@@ -112,18 +112,18 @@ SETTINGS index_granularity = 8192;
 
 INSERT INTO feature_store.inputs
 SELECT
-    now() - toIntervalMinute(number) AS timestamp,
-    concat('entity_', toString(number % 1000)) AS entity_id,
-    now() - toIntervalMinute(number * 2) AS event_time,
-
-    -- нормальные значения, но с редкими выбросами
-    if(number % 250 = 0, randNormal(2000., 500.), randNormal(500., 100.)) AS value_mean,
-    if(number % 300 = 0, randUniform(300., 800.), randUniform(0., 200.)) AS value_std,
-
+    now() - toIntervalMinute(number),
+    concat('entity_', toString(number % 2000)),
+    now() - toIntervalMinute(number * 2),
+    if(number % 5 = 0, randNormal(5000., 1500.), randNormal(500., 100.)) AS value,
+    randNormal(50., 10.) AS attribute,
+    'default' AS event_type,
+    concat('s_', toString(rand())) AS session_id,
+    if(number % 5 = 0, randNormal(5000., 1500.), randNormal(500., 100.)) AS value_mean,
+    if(number % 5 = 0, randUniform(1000., 2000.), randUniform(50., 200.)) AS value_std,
     (number % 50) + 1 AS value_count,
-    if(number % 200 = 0, randUniform(1000., 2000.), randUniform(400., 600.)) AS value_p95,
-    if(number % 400 = 0, randNormal(300., 50.), randNormal(50., 10.)) AS attribute_mean,
-
-    now() AS feature_timestamp,
-    now() AS materialized_at
-FROM numbers(15000);
+    if(number % 5 = 0, randUniform(2000., 4000.), randUniform(400., 600.)) AS value_p95,
+    if(number % 5 = 0, randNormal(500., 100.), randNormal(50., 10.)) AS attribute_mean,
+    now(),
+    now()
+FROM numbers(100000);

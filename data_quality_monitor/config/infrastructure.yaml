@@ -13,9 +13,6 @@ kafka:
     create_timeout_seconds: 10
     delete_timeout_seconds: 30
 
-  consumer:
-    default_timeout_seconds: 0.8
-
   consumer_profiles:
     default:
       timeout_seconds: 0.8
