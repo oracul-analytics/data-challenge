@@ -90,24 +90,33 @@ class ClickHouseRepository:
         return pd.to_datetime(val).to_pydatetime()
 
     def persist_report(self, report: AnomalyReport) -> None:
-        rows = [
-            {
-                "generated_at": self._to_datetime(report.generated_at),
-                "window_start": self._to_datetime(anomaly.window_start),
-                "window_end": self._to_datetime(anomaly.window_end),
-                "detector": str(anomaly.detector),
-                "score": float(anomaly.score),
-                "severity": float(anomaly.severity),
-                "description": str(anomaly.description),
-            }
-            for anomaly in report.anomalies
-        ]
+        rows = []
+        for anomaly in report.anomalies:
+            rows.append(
+                [
+                    self._to_datetime(report.generated_at),
+                    self._to_datetime(anomaly.window_start),
+                    self._to_datetime(anomaly.window_end),
+                    str(anomaly.detector),
+                    float(anomaly.score),
+                    float(anomaly.severity),
+                    str(anomaly.description),
+                ]
+            )
 
         with self._factory.connect() as client:
-            # Для словарей column_names указывать не нужно
             client.insert(
                 table="anomaly_reports",
                 data=rows,
+                column_names=[
+                    "generated_at",
+                    "window_start",
+                    "window_end",
+                    "detector",
+                    "score",
+                    "severity",
+                    "description",
+                ],
             )
 
     def read_latest_window(self) -> pd.DataFrame:
