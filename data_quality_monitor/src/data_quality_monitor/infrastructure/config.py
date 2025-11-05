@@ -27,8 +27,10 @@ class KafkaTopicConfig:
 
 
 @dataclass(slots=True)
-class KafkaConsumerConfig:
-    default_timeout_seconds: float
+class ConsumerProfileConfig:
+    timeout_seconds: float
+    auto_offset_reset: str = "earliest"
+    enable_auto_commit: bool = True
 
 
 @dataclass(slots=True)
@@ -46,7 +48,7 @@ class ProducerProfileConfig:
 class KafkaConfig:
     bootstrap_servers: str
     topic: KafkaTopicConfig
-    consumer: KafkaConsumerConfig
+    consumer_profiles: Dict[str, ConsumerProfileConfig]
     producer_profiles: Dict[str, ProducerProfileConfig]
 
 
@@ -62,15 +64,20 @@ class RuleConfig:
             infra_raw = yaml.safe_load(f)
 
         clickhouse_config = ClickHouseConfig(**infra_raw["clickhouse"])
+
         kafka_raw = infra_raw["kafka"]
         kafka_topic_config = KafkaTopicConfig(**kafka_raw["topic"])
-        kafka_consumer_config = KafkaConsumerConfig(**kafka_raw["consumer"])
+
+        consumer_profiles_raw = kafka_raw.get("consumer_profiles", {})
+        consumer_profiles = {name: ConsumerProfileConfig(**profile) for name, profile in consumer_profiles_raw.items()}
+
         producer_profiles_raw = kafka_raw.get("producer_profiles", {})
         producer_profiles = {name: ProducerProfileConfig(**profile) for name, profile in producer_profiles_raw.items()}
+
         kafka_config = KafkaConfig(
             bootstrap_servers=kafka_raw["bootstrap_servers"],
             topic=kafka_topic_config,
-            consumer=kafka_consumer_config,
+            consumer_profiles=consumer_profiles,
             producer_profiles=producer_profiles,
         )
 

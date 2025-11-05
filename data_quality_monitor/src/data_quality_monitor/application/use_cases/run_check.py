@@ -6,11 +6,11 @@ from confluent_kafka.admin import AdminClient, NewTopic
 from loguru import logger
 
 from data_quality_monitor.infrastructure.adapters.redpanda_producer import RedpandaProducer
-from data_quality_monitor.infrastructure.adapters.redpanda_consumer import RedpandaConsumer
+from data_quality_monitor.infrastructure.adapters.redpanda_consumer import RedpandaConsumer, ConsumerConfig
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import ClickHouseRepository
 from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
-from data_quality_monitor.infrastructure.config import RuleConfig, KafkaTopicConfig, KafkaConsumerConfig, KafkaConfig
-from data_quality_monitor.application.use_cases.process_rules import ProcessRulesUseCase, RuleEvaluator
+from data_quality_monitor.infrastructure.config import RuleConfig, KafkaConfig
+from data_quality_monitor.application.use_cases.process_rules import ProcessRulesUseCase
 
 
 @dataclass
@@ -25,18 +25,21 @@ class KafkaRuntimeConfig:
 
 
 class TopicManager:
-    def __init__(self, bootstrap_servers: str, topic_config):
-        self.admin_client = AdminClient({"bootstrap.servers": bootstrap_servers})
-        self.topic_config = topic_config
+    def __init__(self, config: KafkaConfig):
+        self.admin_client = AdminClient({"bootstrap.servers": config.bootstrap_servers})
+        self.partitions = config.topic.partitions
+        self.replication_factor = config.topic.replication_factor
+        self.create_timeout_seconds = config.topic.create_timeout_seconds
+        self.delete_timeout_seconds = config.topic.delete_timeout_seconds
 
     def create(self, topic_name: str):
-        topic = NewTopic(topic_name, num_partitions=self.topic_config.partitions, replication_factor=self.topic_config.replication_factor)
+        topic = NewTopic(topic_name, num_partitions=self.partitions, replication_factor=self.replication_factor)
         for _, future in self.admin_client.create_topics([topic]).items():
-            future.result(timeout=self.topic_config.create_timeout_seconds)
+            future.result(timeout=self.create_timeout_seconds)
         logger.info(f"Topic created: {topic_name}")
 
     def delete(self, topic_name: str):
-        for _, future in self.admin_client.delete_topics([topic_name], operation_timeout=self.topic_config.delete_timeout_seconds).items():
+        for _, future in self.admin_client.delete_topics([topic_name], operation_timeout=self.delete_timeout_seconds).items():
             future.result()
         logger.info(f"Topic deleted: {topic_name}")
 
@@ -46,8 +49,7 @@ class KafkaService:
         self.config = config
         self.runtime = runtime
         self.producer_profile = producer_profile
-        self.topic_manager = TopicManager(config.bootstrap_servers, config.topic)
-        self.consumer_config = config.consumer
+        self.topic_manager = TopicManager(config)
 
     def setup(self):
         self.topic_manager.create(self.runtime.topic_name)
@@ -55,30 +57,38 @@ class KafkaService:
     def cleanup(self):
         self.topic_manager.delete(self.runtime.topic_name)
 
-    def producer(self, auto_flush_interval: int = 1000) -> RedpandaProducer:
+    def producer(self) -> RedpandaProducer:
         profile = self.config.producer_profiles[self.producer_profile]
         return RedpandaProducer(
-            bootstrap_servers=self.config.bootstrap_servers, topic=self.runtime.topic_name, config=profile, auto_flush_interval=auto_flush_interval
-        )
-
-    def consume(self, repository: ClickHouseRepository, total_messages: int):
-        consumer = RedpandaConsumer(
             bootstrap_servers=self.config.bootstrap_servers,
             topic=self.runtime.topic_name,
-            group_id=self.runtime.group_id,
-            timeout_seconds=self.consumer_config.default_timeout_seconds,
+            config=profile,
+            auto_flush_interval=profile.linger_ms,
         )
+
+    def consume(self, repository: ClickHouseRepository, total_messages: int, consumer_profile_name: str = "low_latency"):
+        profile = self.config.consumer_profiles[consumer_profile_name]
+        consumer_config = ConsumerConfig(
+            bootstrap_servers=self.config.bootstrap_servers,
+            group_id=self.runtime.group_id,
+            topic=self.runtime.topic_name,
+            timeout_seconds=profile.timeout_seconds,
+            auto_offset_reset=profile.auto_offset_reset,
+            enable_auto_commit=profile.enable_auto_commit,
+        )
+        consumer = RedpandaConsumer(config=consumer_config)
         consumer.consume(callback=repository.save_from_message, max_messages=total_messages)
         consumer.close()
 
 
 class RunProcess:
-    def __init__(self, infra_path: Path, rules_path: Path):
+    def __init__(self, infra_path: Path, rules_path: Path, consumer_profile: str = "low_latency"):
         self.config = RuleConfig.load(infra_path, rules_path)
         self.runtime = KafkaRuntimeConfig.random()
         self.repository = self._setup_repository()
-        self.kafka_service = KafkaService(self.config.kafka, self.runtime)
+        self.kafka_service = KafkaService(self.config.kafka, self.runtime, producer_profile="high_throughput")
         self.rules_use_case = ProcessRulesUseCase(self.repository)
+        self.consumer_profile_name = consumer_profile
 
     def _setup_repository(self):
         factory = ClickHouseFactory(self.config.clickhouse)
@@ -91,7 +101,7 @@ class RunProcess:
             self.kafka_service.setup()
             producer = self.kafka_service.producer()
             total_messages = self.rules_use_case.execute(self.config.rules, producer)
-            self.kafka_service.consume(self.repository, total_messages)
+            self.kafka_service.consume(self.repository, total_messages, consumer_profile_name=self.consumer_profile_name)
             logger.debug("Pipeline completed successfully")
         finally:
             self.kafka_service.cleanup()

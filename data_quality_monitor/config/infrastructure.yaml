@@ -16,6 +16,20 @@ kafka:
   consumer:
     default_timeout_seconds: 0.8
 
+  consumer_profiles:
+    default:
+      timeout_seconds: 0.8
+      auto_offset_reset: "earliest"
+      enable_auto_commit: true
+    low_latency:
+      timeout_seconds: 0.5
+      auto_offset_reset: "earliest"
+      enable_auto_commit: true
+    reliable:
+      timeout_seconds: 1.0
+      auto_offset_reset: "earliest"
+      enable_auto_commit: false
+
   producer_profiles:
     high_throughput:
       linger_ms: 100

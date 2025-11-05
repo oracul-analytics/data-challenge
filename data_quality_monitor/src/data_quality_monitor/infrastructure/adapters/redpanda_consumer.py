@@ -1,4 +1,4 @@
-from confluent_kafka import Consumer, KafkaException
+from confluent_kafka import Consumer
 import json
 from loguru import logger
 from typing import Callable, Optional
@@ -6,15 +6,25 @@ import signal
 import threading
 
 
-class _KafkaConsumerWrapper:
-    def __init__(self, bootstrap_servers: str, group_id: str, topic: str):
+class ConsumerConfig:
+    def __init__(self, bootstrap_servers: str, group_id: str, topic: str, timeout_seconds: float, auto_offset_reset: str, enable_auto_commit: bool):
+        self.bootstrap_servers = bootstrap_servers
+        self.group_id = group_id
         self.topic = topic
+        self.timeout_seconds = timeout_seconds
+        self.auto_offset_reset = auto_offset_reset
+        self.enable_auto_commit = enable_auto_commit
+
+
+class _KafkaConsumerWrapper:
+    def __init__(self, config: ConsumerConfig):
+        self.topic = config.topic
         self.consumer = Consumer(
             {
-                "bootstrap.servers": bootstrap_servers,
-                "group.id": group_id,
-                "auto.offset.reset": "earliest",
-                "enable.auto.commit": True,
+                "bootstrap.servers": config.bootstrap_servers,
+                "group.id": config.group_id,
+                "auto.offset.reset": config.auto_offset_reset,
+                "enable.auto.commit": config.enable_auto_commit,
             }
         )
 
@@ -33,7 +43,7 @@ class _KafkaConsumerWrapper:
 
 
 class _MessageProcessor:
-    def __init__(self, consumer: _KafkaConsumerWrapper, timeout_seconds):
+    def __init__(self, consumer: _KafkaConsumerWrapper, timeout_seconds: float):
         self.consumer = consumer
         self.timeout_seconds = timeout_seconds
         self.running = True
@@ -73,9 +83,9 @@ class _SignalHandler:
 
 
 class RedpandaConsumer:
-    def __init__(self, bootstrap_servers: str, topic: str, group_id: str, timeout_seconds):
-        self._consumer_wrapper = _KafkaConsumerWrapper(bootstrap_servers, group_id, topic)
-        self._processor = _MessageProcessor(self._consumer_wrapper, timeout_seconds)
+    def __init__(self, config: ConsumerConfig):
+        self._consumer_wrapper = _KafkaConsumerWrapper(config)
+        self._processor = _MessageProcessor(self._consumer_wrapper, config.timeout_seconds)
         _SignalHandler.register(self._processor)
 
     def consume(self, callback: Callable[[dict], None], max_messages: Optional[int] = None):
