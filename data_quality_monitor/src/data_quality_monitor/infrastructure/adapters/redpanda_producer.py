@@ -1,45 +1,45 @@
 from confluent_kafka import Producer
 from loguru import logger
 from typing import Optional
-from dataclasses import dataclass
+import threading
 
 
-@dataclass
 class ProducerConfig:
-    linger_ms: int
-    batch_size: int
-    compression_type: str
-    acks: int
-    max_in_flight: int
-    queue_buffering_max_messages: int
-    queue_buffering_max_kbytes: int
-
-    @classmethod
-    def high_throughput(cls, profile) -> "ProducerConfig":
-        return cls(
-            linger_ms=profile.linger_ms,
-            batch_size=profile.batch_size,
-            compression_type=profile.compression_type,
-            acks=profile.acks,
-            max_in_flight=profile.max_in_flight,
-            queue_buffering_max_messages=profile.queue_buffering_max_messages,
-            queue_buffering_max_kbytes=profile.queue_buffering_max_kbytes,
-        )
+    def __init__(
+        self,
+        bootstrap_servers: str,
+        topic: str,
+        linger_ms: int,
+        batch_size: int,
+        compression_type: str,
+        acks: int,
+        max_in_flight: int,
+        queue_buffering_max_messages: int,
+        queue_buffering_max_kbytes: int,
+    ):
+        self.bootstrap_servers = bootstrap_servers
+        self.topic = topic
+        self.linger_ms = linger_ms
+        self.batch_size = batch_size
+        self.compression_type = compression_type
+        self.acks = acks
+        self.max_in_flight = max_in_flight
+        self.queue_buffering_max_messages = queue_buffering_max_messages
+        self.queue_buffering_max_kbytes = queue_buffering_max_kbytes
 
 
 class _KafkaProducerWrapper:
-    def __init__(self, bootstrap_servers: str, topic: str, config: ProducerConfig):
-        self.topic = topic
-        self.config = config
+    def __init__(self, config: ProducerConfig):
+        self.topic = config.topic
         producer_config = {
-            "bootstrap.servers": bootstrap_servers,
-            "linger.ms": self.config.linger_ms,
-            "batch.size": self.config.batch_size,
-            "compression.type": self.config.compression_type,
-            "acks": self.config.acks,
-            "max.in.flight.requests.per.connection": self.config.max_in_flight,
-            "queue.buffering.max.messages": self.config.queue_buffering_max_messages,
-            "queue.buffering.max.kbytes": self.config.queue_buffering_max_kbytes,
+            "bootstrap.servers": config.bootstrap_servers,
+            "linger.ms": config.linger_ms,
+            "batch.size": config.batch_size,
+            "compression.type": config.compression_type,
+            "acks": config.acks,
+            "max.in.flight.requests.per.connection": config.max_in_flight,
+            "queue.buffering.max.messages": config.queue_buffering_max_messages,
+            "queue.buffering.max.kbytes": config.queue_buffering_max_kbytes,
         }
         self.producer = Producer(producer_config)
         logger.debug("Producer config: {}", producer_config)
@@ -65,13 +65,13 @@ class _KafkaProducerWrapper:
 
 
 class RedpandaProducer:
-    def __init__(self, bootstrap_servers: str, topic: str, config: ProducerConfig, auto_flush_interval: int):
-        self._wrapper = _KafkaProducerWrapper(bootstrap_servers, topic, config)
+    def __init__(self, config: ProducerConfig, auto_flush_interval: int):
+        self._wrapper = _KafkaProducerWrapper(config)
         self._auto_flush_interval = auto_flush_interval
         self._message_count = 0
         self._delivery_success = 0
         self._delivery_failed = 0
-        logger.info("Producer initialized for topic '{}' with profile", topic)
+        logger.info("Producer initialized for topic '{}' with profile", config.topic)
 
     def _delivery_report(self, err, msg):
         if err:
@@ -87,7 +87,6 @@ class RedpandaProducer:
             self.flush()
 
     def flush(self, timeout: Optional[float] = None):
-        timeout = timeout
         return self._wrapper.flush(timeout=timeout)
 
     def get_stats(self) -> dict:

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from confluent_kafka.admin import AdminClient, NewTopic
 from loguru import logger
 
-from data_quality_monitor.infrastructure.adapters.redpanda_producer import RedpandaProducer
+from data_quality_monitor.infrastructure.adapters.redpanda_producer import RedpandaProducer, ProducerConfig
 from data_quality_monitor.infrastructure.adapters.redpanda_consumer import RedpandaConsumer, ConsumerConfig
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import ClickHouseRepository
 from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
@@ -58,13 +58,19 @@ class KafkaService:
         self.topic_manager.delete(self.runtime.topic_name)
 
     def producer(self) -> RedpandaProducer:
-        profile = self.config.producer_profiles[self.producer_profile]
-        return RedpandaProducer(
+        profile_cfg = self.config.producer_profiles[self.producer_profile]
+        config = ProducerConfig(
             bootstrap_servers=self.config.bootstrap_servers,
             topic=self.runtime.topic_name,
-            config=profile,
-            auto_flush_interval=profile.linger_ms,
+            linger_ms=profile_cfg.linger_ms,
+            batch_size=profile_cfg.batch_size,
+            compression_type=profile_cfg.compression_type,
+            acks=profile_cfg.acks,
+            max_in_flight=profile_cfg.max_in_flight,
+            queue_buffering_max_messages=profile_cfg.queue_buffering_max_messages,
+            queue_buffering_max_kbytes=profile_cfg.queue_buffering_max_kbytes,
         )
+        return RedpandaProducer(config=config, auto_flush_interval=config.linger_ms)
 
     def consume(self, repository: ClickHouseRepository, total_messages: int, consumer_profile_name: str = "low_latency"):
         profile = self.config.consumer_profiles[consumer_profile_name]
