@@ -6,7 +6,7 @@ clickhouse:
   password: ""
 
 dataset:
-  row_count: 100000000
+  row_count: 100000
   batch_size: 500000
   anomaly_ratio: 0.001
   seed: 42

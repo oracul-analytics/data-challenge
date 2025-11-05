@@ -12,10 +12,16 @@ from pipeline_anomaly.infrastructure.alerting.stdout_sink import StdOutAlertSink
 from pipeline_anomaly.infrastructure.clients.clickhouse import ClickHouseFactory
 from pipeline_anomaly.infrastructure.config import PipelineConfig
 from pipeline_anomaly.infrastructure.detectors.dbscan import DBSCANDetector
-from pipeline_anomaly.infrastructure.detectors.isolation_forest import IsolationForestDetector
+from pipeline_anomaly.infrastructure.detectors.isolation_forest import (
+    IsolationForestDetector,
+)
 from pipeline_anomaly.infrastructure.detectors.zscore import ZScoreDetector
-from pipeline_anomaly.infrastructure.generators.synthetic_generator import SyntheticDatasetGenerator
-from pipeline_anomaly.infrastructure.repositories.clickhouse_repository import ClickHouseRepository
+from pipeline_anomaly.infrastructure.generators.synthetic_generator import (
+    SyntheticDatasetGenerator,
+)
+from pipeline_anomaly.infrastructure.repositories.clickhouse_repository import (
+    ClickHouseRepository,
+)
 
 app = typer.Typer()
 
