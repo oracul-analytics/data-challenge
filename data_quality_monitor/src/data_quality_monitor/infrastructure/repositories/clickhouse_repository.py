@@ -5,24 +5,43 @@ from loguru import logger
 
 from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
 from data_quality_monitor.domain.models.result import QualityReport
+from data_quality_monitor.infrastructure.config import RuleConfig
+from data_quality_monitor.domain.models.rule import Expectation
+from typing import Dict
 
 
 class ClickHouseRepository:
-    def __init__(self, factory: ClickHouseFactory) -> None:
+    def __init__(self, factory: ClickHouseFactory, rule_config: RuleConfig) -> None:
         self.client = factory.create()
         self.database = factory._config.database
+        self.rule_config = rule_config
 
     def ensure_schema_input(self) -> None:
         self.client.command(f"CREATE DATABASE IF NOT EXISTS {self.database}")
-        self.client.command(f"""
-            CREATE TABLE IF NOT EXISTS {self.database}.events (
-                event_id UInt64,
-                value Float64,
-                ts DateTime
-            ) ENGINE = MergeTree()
-            ORDER BY ts
-        """)
-        logger.info("Input schema ensured (events table created)")
+        for table_rule in self.rule_config.rules:
+            table_name = table_rule.table.split(".")[-1]
+            schema_columns = self._extract_schema_columns(table_rule.expectations)
+            if schema_columns:
+                columns_ddl = ",\n".join(
+                    f"{name} {dtype}" for name, dtype in schema_columns.items()
+                )
+                ddl = f"""
+                CREATE TABLE IF NOT EXISTS {self.database}.{table_name} (
+                    {columns_ddl}
+                ) ENGINE = MergeTree()
+                ORDER BY ts
+                """
+                self.client.command(ddl)
+                logger.info(f"Table schema ensured: {table_name}")
+
+    @staticmethod
+    def _extract_schema_columns(
+        expectations: tuple[Expectation, ...],
+    ) -> Dict[str, str]:
+        for exp in expectations:
+            if exp.type == "schema":
+                return exp.params.get("columns", {})
+        return {}
 
     def ensure_schema_output(self) -> None:
         self.client.command(f"""

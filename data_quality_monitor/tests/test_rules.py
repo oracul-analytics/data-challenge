@@ -25,7 +25,7 @@ def test_rules_yaml_direct():
     logger.info("  Rules: {}", len(config.rules))
 
     factory = ClickHouseFactory(config.clickhouse)
-    repo = ClickHouseRepository(factory=factory)
+    repo = ClickHouseRepository(factory=factory, rule_config=config)
     repo.ensure_schema()
 
     try:

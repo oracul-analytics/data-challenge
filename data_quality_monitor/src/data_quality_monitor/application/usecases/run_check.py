@@ -203,7 +203,9 @@ class RunProcess:
         self.kafka_config = KafkaRuntimeConfig.create_with_random_names()
 
         factory = ClickHouseFactory(self.rule_config.clickhouse)
-        self.repository = ClickHouseRepository(factory=factory)
+        self.repository = ClickHouseRepository(
+            factory=factory, rule_config=self.rule_config
+        )
         self.repository.ensure_schema()
 
         self.rule_processor = RuleProcessor(self.repository)

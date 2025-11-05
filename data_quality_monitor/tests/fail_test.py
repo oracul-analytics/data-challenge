@@ -22,7 +22,7 @@ def test_rules_yaml_failures():
     config = RuleConfig.load(INFRA_PATH, RULES_PATH)
     logger.info("✓ Loaded config from {} and {}", INFRA_PATH, RULES_PATH)
     factory = ClickHouseFactory(config.clickhouse)
-    repo = ClickHouseRepository(factory=factory)
+    repo = ClickHouseRepository(factory=factory, rule_config=config)
 
     try:
         repo.client.command("TRUNCATE TABLE dq.events")

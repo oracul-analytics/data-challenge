@@ -21,7 +21,7 @@ def test_rules_yaml_via_kafka():
 
     config = RuleConfig.load(INFRA_PATH, RULES_PATH)
     factory = ClickHouseFactory(config.clickhouse)
-    repo = ClickHouseRepository(factory=factory)
+    repo = ClickHouseRepository(factory=factory, rule_config=config)
     domain_repo = ClickHouseRepositoryDomain(repo.client, repo.database)
 
     try:
