@@ -30,22 +30,17 @@ def test_rules_yaml_failures():
     repo = ClickHouseRepository(factory=factory)
     domain_repo = ClickHouseRepositoryDomain(repo.client, repo.database)
 
-    try:
-        repo.client.command(f"""
-            CREATE TABLE IF NOT EXISTS {repo.database}.events (
-                event_id String,
-                value Nullable(Float64),
-                ts DateTime
-            ) ENGINE = MergeTree()
-            ORDER BY ts
-        """)
-
-        domain_repo.truncate_table(f"{repo.database}.events")
-        domain_repo.truncate_table(f"{repo.database}.reports")
-        logger.info("✗ Created intentionally faulty schema (event_id as String)")
-    except Exception as e:
-        logger.error("Failed to create faulty schema: {}", e)
-        raise
+    repo.client.command(f"""
+        CREATE TABLE IF NOT EXISTS {repo.database}.events (
+            event_id String,
+            value Nullable(Float64),
+            ts DateTime
+        ) ENGINE = MergeTree()
+        ORDER BY ts
+    """)
+    domain_repo.truncate_table(f"{repo.database}.events")
+    domain_repo.truncate_table(f"{repo.database}.reports")
+    logger.info("✗ Created intentionally faulty schema (event_id as String)")
 
     # Здесь мы говорим pytest, что ожидаем AssertionError
     with pytest.raises(AssertionError, match="Schema validation failed"):

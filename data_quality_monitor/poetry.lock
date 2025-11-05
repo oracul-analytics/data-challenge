@@ -220,6 +220,7 @@ files = [
     {file = "confluent_kafka-2.12.1-cp39-cp39-manylinux_2_28_aarch64.whl", hash = "sha256:1ca2519bf27ea71ca32feb01859a086183614c44f8d843a917fcc1c135c24706"},
     {file = "confluent_kafka-2.12.1-cp39-cp39-manylinux_2_28_x86_64.whl", hash = "sha256:2b4bb9fefa85462aa0b1f5d96abadffad911d93033b470b3b6fc46d63f2a28e9"},
     {file = "confluent_kafka-2.12.1-cp39-cp39-win_amd64.whl", hash = "sha256:64a5798ec7fe5a101e055c2729c6ac6d6fd9d462a93a1fb3e314866a70ce804b"},
+    {file = "confluent_kafka-2.12.1.tar.gz", hash = "sha256:cfc4ceeb3071a678f7c93cfe1e76216442e1621ee6192584cdf704db1d619894"},
 ]
 
 [package.extras]
