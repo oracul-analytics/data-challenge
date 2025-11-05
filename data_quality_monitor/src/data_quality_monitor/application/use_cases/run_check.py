@@ -11,6 +11,30 @@ from data_quality_monitor.infrastructure.repositories.clickhouse_repository impo
 from data_quality_monitor.infrastructure.factory.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.config import RuleConfig, KafkaConfig
 from data_quality_monitor.application.use_cases.process_rules import ProcessRulesUseCase
+from dataclasses import asdict
+
+
+@dataclass
+class RedpandaProducerConfig:
+    bootstrap_servers: str
+    topic: str
+    linger_ms: int
+    batch_size: int
+    compression_type: str
+    acks: int
+    max_in_flight: int
+    queue_buffering_max_messages: int
+    queue_buffering_max_kbytes: int
+
+
+@dataclass
+class RedpandaConsumerConfig:
+    bootstrap_servers: str
+    group_id: str
+    topic: str
+    timeout_seconds: float
+    auto_offset_reset: str
+    enable_auto_commit: bool
 
 
 @dataclass
@@ -33,13 +57,20 @@ class TopicManager:
         self.delete_timeout_seconds = config.topic.delete_timeout_seconds
 
     def create(self, topic_name: str):
-        topic = NewTopic(topic_name, num_partitions=self.partitions, replication_factor=self.replication_factor)
+        topic = NewTopic(
+            topic_name,
+            num_partitions=self.partitions,
+            replication_factor=self.replication_factor,
+        )
         for _, future in self.admin_client.create_topics([topic]).items():
             future.result(timeout=self.create_timeout_seconds)
         logger.info(f"Topic created: {topic_name}")
 
     def delete(self, topic_name: str):
-        for _, future in self.admin_client.delete_topics([topic_name], operation_timeout=self.delete_timeout_seconds).items():
+        for _, future in self.admin_client.delete_topics(
+            [topic_name],
+            operation_timeout=self.delete_timeout_seconds,
+        ).items():
             future.result()
         logger.info(f"Topic deleted: {topic_name}")
 
@@ -58,29 +89,26 @@ class KafkaService:
         self.topic_manager.delete(self.runtime.topic_name)
 
     def producer(self) -> RedpandaProducer:
+        """Создаёт продюсера Redpanda с профилем из конфигурации"""
         profile_cfg = self.config.producer_profiles[self.producer_profile]
-        config = ProducerConfig(
+        producer_config = RedpandaProducerConfig(
             bootstrap_servers=self.config.bootstrap_servers,
             topic=self.runtime.topic_name,
-            linger_ms=profile_cfg.linger_ms,
-            batch_size=profile_cfg.batch_size,
-            compression_type=profile_cfg.compression_type,
-            acks=profile_cfg.acks,
-            max_in_flight=profile_cfg.max_in_flight,
-            queue_buffering_max_messages=profile_cfg.queue_buffering_max_messages,
-            queue_buffering_max_kbytes=profile_cfg.queue_buffering_max_kbytes,
+            **asdict(profile_cfg),
         )
-        return RedpandaProducer(config=config, auto_flush_interval=config.linger_ms)
+        return RedpandaProducer(
+            config=producer_config,
+            auto_flush_interval=producer_config.linger_ms,
+        )
 
     def consume(self, repository: ClickHouseRepository, total_messages: int, consumer_profile_name: str = "low_latency"):
+        """Читает сообщения из топика и сохраняет их в ClickHouse"""
         profile = self.config.consumer_profiles[consumer_profile_name]
-        consumer_config = ConsumerConfig(
+        consumer_config = RedpandaConsumerConfig(
             bootstrap_servers=self.config.bootstrap_servers,
             group_id=self.runtime.group_id,
             topic=self.runtime.topic_name,
-            timeout_seconds=profile.timeout_seconds,
-            auto_offset_reset=profile.auto_offset_reset,
-            enable_auto_commit=profile.enable_auto_commit,
+            **asdict(profile),
         )
         consumer = RedpandaConsumer(config=consumer_config)
         consumer.consume(callback=repository.save_from_message, max_messages=total_messages)
@@ -88,6 +116,8 @@ class KafkaService:
 
 
 class RunProcess:
+    """Основной исполнительный класс: orchestrator пайплайна"""
+
     def __init__(self, infra_path: Path, rules_path: Path, consumer_profile: str = "low_latency"):
         self.config = RuleConfig.load(infra_path, rules_path)
         self.runtime = KafkaRuntimeConfig.random()
@@ -107,7 +137,11 @@ class RunProcess:
             self.kafka_service.setup()
             producer = self.kafka_service.producer()
             total_messages = self.rules_use_case.execute(self.config.rules, producer)
-            self.kafka_service.consume(self.repository, total_messages, consumer_profile_name=self.consumer_profile_name)
+            self.kafka_service.consume(
+                self.repository,
+                total_messages,
+                consumer_profile_name=self.consumer_profile_name,
+            )
             logger.debug("Pipeline completed successfully")
         finally:
             self.kafka_service.cleanup()

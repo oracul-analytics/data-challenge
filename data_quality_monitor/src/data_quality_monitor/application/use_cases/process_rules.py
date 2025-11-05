@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from loguru import logger
 from data_quality_monitor.domain.models.rule import TableRule
 from data_quality_monitor.domain.models.result import QualityReport, RuleResult
 from data_quality_monitor.infrastructure.adapters.redpanda_producer import RedpandaProducer
@@ -22,10 +21,10 @@ class RuleEvaluator:
             report = engine.evaluate(TableRule(table=rule.table, expectations=tuple(non_schema_expectations)), table_data)
             results.extend(report.results)
         else:
-            for e in non_schema_expectations:
-                results.append(
-                    RuleResult(rule=f"{e.type}:{e.params.get('column', '')}", passed=False, details={"skipped_due_to_schema_failure": True})
-                )
+            results.extend(
+                RuleResult(rule=f"{e.type}:{e.params.get('column', '')}", passed=False, details={"skipped_due_to_schema_failure": True})
+                for e in non_schema_expectations
+            )
 
         return QualityReport(table=rule.table, generated_at=datetime.now(timezone.utc), results=tuple(results))
 
@@ -36,24 +35,21 @@ class ProcessRulesUseCase:
         self.rule_evaluator = RuleEvaluator(repository)
 
     def execute(self, rules: list[TableRule], producer: RedpandaProducer) -> int:
-        total = 0
+        total_messages = 0
         for rule in rules:
-            schema_result = (
-                self.schema_validator.validate(rule)
-                if any(e.type == "schema" for e in rule.expectations)
-                else RuleResult(rule="schema", passed=True, details={})
-            )
+            schema_result = self.schema_validator.validate(rule)
             report = self.rule_evaluator.evaluate(rule, schema_result.passed)
+            self._send_results(report, schema_result, producer)
+            total_messages += len(report.results) + 1
+        return total_messages
 
-            for r in report.results + (schema_result,):
-                msg = {
-                    "table_name": report.table,
-                    "rule": r.rule,
-                    "passed": int(r.passed),
-                    "details": str(r.details),
-                    "generated_at": report.generated_at.isoformat(),
-                }
-                producer.send_payload(key=report.table, payload=PayloadOutputSerializer.to_json(msg))
-
-            total += len(report.results) + 1
-        return total
+    def _send_results(self, report: QualityReport, schema_result: RuleResult, producer: RedpandaProducer):
+        for r in report.results + (schema_result,):
+            msg = {
+                "table_name": report.table,
+                "rule": r.rule,
+                "passed": int(r.passed),
+                "details": str(r.details),
+                "generated_at": report.generated_at.isoformat(),
+            }
+            producer.send_payload(key=report.table, payload=PayloadOutputSerializer.to_json(msg))
