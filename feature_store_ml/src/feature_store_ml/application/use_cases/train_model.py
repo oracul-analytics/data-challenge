@@ -3,9 +3,11 @@ from __future__ import annotations
 from loguru import logger
 
 from feature_store_ml.infrastructure.datasets.builder import DatasetBuilder
-from feature_store_ml.infrastructure.modeling.trainer import LightGBMTrainer
 from feature_store_ml.infrastructure.repositories.clickhouse_repository import (
     ClickHouseRepository,
+)
+from feature_store_ml.infrastructure.modeling.ensemble_trainer import (
+    AdvancedEnsembleTrainer,
 )
 
 
@@ -14,7 +16,7 @@ class TrainModel:
         self,
         repository: ClickHouseRepository,
         dataset_builder: DatasetBuilder,
-        trainer: LightGBMTrainer,
+        trainer: AdvancedEnsembleTrainer,
     ) -> None:
         self._repository = repository
         self._dataset_builder = dataset_builder
