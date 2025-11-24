@@ -1,18 +1,25 @@
 from __future__ import annotations
-
 from pathlib import Path
-from typing import Tuple
-
+from typing import Tuple, List
 import joblib
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
-
 from feature_store_ml.domain.models.dataset import FeatureDataset
 from feature_store_ml.domain.models.model_artifact import ModelArtifact
 from feature_store_ml.infrastructure.config import TrainingConfig
+
+
+FEATURE_NAMES: List[str] = [
+    "value",
+    "value_mean",
+    "value_std",
+    "value_count",
+    "value_p95",
+    "attribute_mean",
+]
 
 
 class TrainingDataSplitter:
@@ -104,7 +111,7 @@ class TrainingMetadataBuilder:
     @staticmethod
     def build(
         auc: float,
-        feature_names: list[str],
+        feature_names: List[str],
         num_train: int,
         num_test: int,
     ) -> dict:
@@ -117,7 +124,7 @@ class TrainingMetadataBuilder:
 
 
 class ModelPredictor:
-    def __init__(self, model: lgb.Booster, feature_names: list[str]):
+    def __init__(self, model: lgb.Booster, feature_names: List[str]):
         self._model = model
         self._feature_names = feature_names
 
@@ -157,17 +164,20 @@ class LightGBMTrainer:
         self._predictor = None
 
     def train(self, dataset: FeatureDataset) -> ModelArtifact:
-        X_train, X_test, y_train, y_test = self._splitter.split(dataset.X, dataset.y)
+        # Используем только заранее указанные признаки
+        X = dataset.features[FEATURE_NAMES]
+        y = dataset.labels
+
+        X_train, X_test, y_train, y_test = self._splitter.split(X, y)
 
         model = self._builder.train(X_train, y_train, X_test, y_test)
 
         predictions = model.predict(X_test)
         auc = self._evaluator.calculate_auc(y_test, predictions)
 
-        feature_names = list(dataset.X.columns)
         metadata = TrainingMetadataBuilder.build(
             auc=auc,
-            feature_names=feature_names,
+            feature_names=FEATURE_NAMES,
             num_train=len(X_train),
             num_test=len(X_test),
         )
@@ -175,17 +185,17 @@ class LightGBMTrainer:
         self._persistence.save_model(model)
         self._persistence.save_metadata(metadata)
 
-        self._predictor = ModelPredictor(model, feature_names)
+        self._predictor = ModelPredictor(model, FEATURE_NAMES)
 
         return ModelArtifact(
             model_path=self._persistence.model_path,
-            feature_names=tuple(feature_names),
+            feature_names=tuple(FEATURE_NAMES),
         )
 
     def load(self) -> Tuple[lgb.Booster, dict]:
         model = self._persistence.load_model()
         metadata = self._persistence.load_metadata()
-        self._predictor = ModelPredictor(model, metadata["features"])
+        self._predictor = ModelPredictor(model, FEATURE_NAMES)
         return model, metadata
 
     def predict_proba(self, X: pd.DataFrame) -> np.ndarray:

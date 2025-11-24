@@ -45,7 +45,7 @@ FROM numbers(15000);
 
 
 
-CREATE TABLE results
+CREATE TABLE feature_store.results
 (
     `entity_id`            String,
     `event_time`           DateTime,

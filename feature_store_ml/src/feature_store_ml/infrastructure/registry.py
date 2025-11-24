@@ -16,6 +16,10 @@ class FeatureRegistry:
         return cls(
             features=(
                 Feature(
+                    "value",
+                    lambda df: df["value"],
+                ),
+                Feature(
                     "value_mean",
                     lambda df: df.groupby("entity_id")["value"].transform("mean"),
                 ),
