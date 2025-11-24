@@ -29,6 +29,7 @@ def test_rules_yaml_failures_via_usecases():
     repo_domain = ClickHouseRepositoryDomain(client=repo.client, database=repo.database)
     repo_domain.drop_table("dq.events")
     repo_domain.drop_table("dq.reports")
+    repo_domain.drop_table("dq.test2")
     logger.info("✓ Dropped events and reports tables")
     repo.ensure_schema()
 
@@ -41,6 +42,15 @@ def test_rules_yaml_failures_via_usecases():
             "ts": [start_time + timedelta(seconds=i) for i in range(num_rows)],
         }
     )
+    test2_data = pd.DataFrame(
+        {
+            "id": [i % 20 for i in range(num_rows)],
+            "field_a": [float("nan") if i % 5 == 0 else float((i % 600) - 50) for i in range(num_rows)],
+            "ts": [start_time + timedelta(seconds=i) for i in range(num_rows)],
+        }
+    )
+
+    repo.insert_table("dq.test2", test2_data)
     repo.insert_events(events_data)
     logger.info("✓ Inserted {} faulty events (with intentional rule violations)", num_rows)
 

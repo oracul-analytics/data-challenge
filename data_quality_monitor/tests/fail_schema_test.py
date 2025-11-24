@@ -29,6 +29,7 @@ def test_all_rules_fail_in_reports():
     repo_domain = ClickHouseRepositoryDomain(client=repo.client, database=repo.database)
     repo_domain.drop_table("dq.events")
     repo_domain.drop_table("dq.reports")
+    repo_domain.drop_table("dq.test2")
     logger.info("✓ Dropped events and reports tables")
 
     repo.client.command(f"""

@@ -24,6 +24,7 @@ def test_rules_yaml_via_kafka():
     repo_domain = ClickHouseRepositoryDomain(client=repo.client, database=repo.database)
     repo_domain.drop_table("dq.events")
     repo_domain.drop_table("dq.reports")
+    repo_domain.drop_table("dq.test2")
     logger.info("✓ Dropped events and reports tables")
 
     repo.ensure_schema()

@@ -5,6 +5,7 @@ from data_quality_monitor.domain.models.rules.result import QualityReport
 from data_quality_monitor.infrastructure.config import RuleConfig
 from data_quality_monitor.domain.models.rules.rule import Expectation
 from typing import Dict
+from loguru import logger
 
 
 class ClickHouseRepository:
@@ -55,7 +56,7 @@ class ClickHouseRepository:
 
     def _insert_dataframe(self, table: str, df: pd.DataFrame) -> None:
         if not df.empty:
-            self.client.insert(f"{self.database}.{table}", df)
+            self.client.insert_df(f"{self.database}.{table}", df)
 
     def _prepare_report_rows(self, reports: list[QualityReport]) -> pd.DataFrame:
         rows = [
@@ -98,7 +99,9 @@ class ClickHouseRepository:
             df["event_id"] = df["event_id"].astype("uint64")
         if "value" in df.columns:
             df["value"] = df["value"].astype("Float64")
-        self._insert_dataframe("events", df)
+        if "ts" in df.columns:
+            df["ts"] = pd.to_datetime(df["ts"])
+        self.client.insert_df(f"{self.database}.events", df)
 
     def fetch_table(self, table_name: str) -> pd.DataFrame:
         full_table_name = table_name if "." in table_name else f"{self.database}.{table_name}"
@@ -118,3 +121,26 @@ class ClickHouseRepository:
         """
         result = self.client.query(query)
         return {row[0]: row[1] for row in result.result_rows}
+
+    def drop_table(self, table_name: str) -> None:
+        full_table_name = table_name if "." in table_name else f"{self.database}.{table_name}"
+        try:
+            self.client.command(f"DROP TABLE IF EXISTS {full_table_name}")
+            logger.info("✓ Dropped table {}", full_table_name)
+        except Exception as e:
+            logger.error("❌ Failed to drop table {}: {}", full_table_name, e)
+            raise
+
+    def insert_table(self, table_name: str, df: pd.DataFrame) -> None:
+        df_copy = df.copy()
+
+        if "id" in df_copy.columns:
+            df_copy["id"] = df_copy["id"].astype("uint64")
+        if "field_a" in df_copy.columns:
+            df_copy["field_a"] = df_copy["field_a"].astype("Float64")
+        if "ts" in df_copy.columns:
+            df_copy["ts"] = pd.to_datetime(df_copy["ts"])
+
+        full_table_name = table_name if "." in table_name else f"{self.database}.{table_name}"
+        self.client.insert_df(full_table_name, df_copy)
+        logger.info("✓ Inserted {} rows into table '{}'", len(df_copy), full_table_name)

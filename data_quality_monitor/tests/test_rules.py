@@ -27,13 +27,11 @@ def test_rules_yaml_direct():
     factory = ClickHouseFactory(config.clickhouse)
     repo = ClickHouseRepository(factory=factory, rule_config=config)
     repo.ensure_schema()
+    repo.drop_table("dq.test2")
+    repo.drop_table("dq.events")
+    repo.drop_table("dq.reports")
 
-    try:
-        repo.client.command("TRUNCATE TABLE dq.events")
-        repo.client.command("TRUNCATE TABLE dq.reports")
-        logger.info("✓ Cleared events and reports tables")
-    except Exception as e:
-        logger.warning("Could not truncate tables: {}", e)
+    repo.ensure_schema()
 
     num_rows = 1000
     start_time = datetime(2025, 11, 4, 0, 0, 0)
@@ -48,6 +46,16 @@ def test_rules_yaml_direct():
 
     repo.insert_events(events_data)
     logger.info("✓ Inserted {} events", num_rows)
+
+    test2_data = pd.DataFrame(
+        {
+            "id": range(1, num_rows + 1),
+            "field_a": [float(i % 500) for i in range(num_rows)],
+            "ts": [start_time + timedelta(seconds=i) for i in range(num_rows)],
+        }
+    )
+    repo.insert_table("dq.test2", test2_data)
+    logger.info("✓ Inserted {} rows into dq.test2", num_rows)
 
     all_passed = True
     total_checks = 0
