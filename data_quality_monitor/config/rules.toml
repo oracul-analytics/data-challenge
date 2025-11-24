@@ -1,0 +1,22 @@
+[[tables]]
+name = "dq.events"
+
+[[tables.expectations]]
+type = "completeness"
+column = "value"
+threshold = 0.99
+
+[[tables.expectations]]
+type = "uniqueness"
+column = "event_id"
+threshold = 0.98
+
+[[tables.expectations]]
+type = "range"
+column = "value"
+min = 0
+max = 1000
+
+[[tables.expectations]]
+type = "schema"
+columns = { event_id = "UInt64", value = "Float64", ts = "DateTime" }

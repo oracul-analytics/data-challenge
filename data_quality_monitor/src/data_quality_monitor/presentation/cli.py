@@ -13,8 +13,8 @@ app = typer.Typer()
 
 @app.command()
 def run(
-    infra_config: Path = typer.Option(..., exists=True, help="Path to infrastructure.yaml"),
-    rules_config: Path = typer.Option(..., exists=True, help="Path to rules.yaml"),
+    infra_config: Path = typer.Option(..., exists=True, help="Path to infrastructure.toml"),
+    rules_config: Path = typer.Option(..., exists=True, help="Path to rules.toml"),
 ) -> None:
     cfg = RuleConfig.load(infra_config, rules_config)
 

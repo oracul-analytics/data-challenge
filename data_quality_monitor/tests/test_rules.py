@@ -14,8 +14,8 @@ logger.remove()
 logger.add(sys.stderr, level="INFO")
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
-INFRA_PATH = CONFIG_DIR / "infrastructure.yaml"
-RULES_PATH = CONFIG_DIR / "rules.yaml"
+INFRA_PATH = CONFIG_DIR / "infrastructure.toml"
+RULES_PATH = CONFIG_DIR / "rules.toml"
 
 
 def test_rules_yaml_direct():

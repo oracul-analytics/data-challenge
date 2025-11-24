@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict
-import yaml
+import tomli
 from data_quality_monitor.domain.models.rules.rule import Expectation, TableRule
 
 
@@ -57,8 +57,8 @@ class RuleConfig:
 
     @classmethod
     def load(cls, infra_path: Path, rules_path: Path) -> "RuleConfig":
-        with infra_path.open("r", encoding="utf-8") as f:
-            infra_raw = yaml.safe_load(f)
+        with infra_path.open("rb") as f:
+            infra_raw = tomli.load(f)
 
         clickhouse_config = ClickHouseConfig(**infra_raw["clickhouse"])
 
@@ -78,13 +78,16 @@ class RuleConfig:
             producer_profiles=producer_profiles,
         )
 
-        with rules_path.open("r", encoding="utf-8") as f:
-            rules_raw = yaml.safe_load(f)
+        with rules_path.open("rb") as f:
+            rules_raw = tomli.load(f)
 
         rules = []
-        for item in rules_raw["rules"]:
-            expectations = [Expectation(type=exp.pop("type"), params=exp) for exp in item["expectations"]]
-            rules.append(TableRule(table=item["table"], expectations=tuple(expectations)))
+        for table_data in rules_raw["tables"]:
+            expectations = []
+            for exp in table_data["expectations"]:
+                exp_type = exp.pop("type")
+                expectations.append(Expectation(type=exp_type, params=exp))
+            rules.append(TableRule(table=table_data["name"], expectations=tuple(expectations)))
 
         return cls(
             clickhouse=clickhouse_config,
