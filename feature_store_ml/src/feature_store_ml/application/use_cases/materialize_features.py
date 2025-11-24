@@ -77,6 +77,10 @@ class MaterializeFeatures:
         else:
             raise ValueError(f"Unsupported model type: {type(self._model)}")
 
+        logger.info(
+            "Prediction scores distribution:\n%s",
+            pd.Series(prediction_scores).describe(),
+        )
         features_with_predictions = features.copy()
         features_with_predictions["prediction_label"] = predictions
         features_with_predictions["prediction_score"] = prediction_scores
@@ -111,24 +115,37 @@ class MaterializeFeatures:
         else:
             features = self._registry.compute(raw_data)
 
+        features_before_dropna = len(features)
         features = features.dropna(subset=required_features)
+        dropped_na = features_before_dropna - len(features)
+        if dropped_na > 0:
+            logger.warning(
+                f"Dropped {dropped_na} rows with NULL values in required features"
+            )
 
-        features = (
-            features.sort_values("event_time", ascending=False)
-            .groupby("entity_id", as_index=False)
-            .first()
-        )
+        # features = (
+        #     features.sort_values("event_time", ascending=False)
+        #     .groupby("entity_id", as_index=False)
+        #     .first()
+        # )
 
         if features.empty:
+            logger.warning("No features left after deduplication")
             return
 
         features_with_predictions = self._predict_artifacts(features)
 
+        total_records = len(features_with_predictions)
         clean_features = features_with_predictions[
             features_with_predictions["prediction_label"] == 0
         ].copy()
+        artifact_count = total_records - len(clean_features)
+
+        if artifact_count > 0:
+            logger.info(f"Detected {artifact_count} artifact records")
 
         if clean_features.empty:
+            logger.warning("All records classified as artifacts - nothing to write")
             return
 
         columns_to_write = [
@@ -139,4 +156,7 @@ class MaterializeFeatures:
         clean_features_final = clean_features[columns_to_write]
 
         self._repository.write_features(clean_features_final, table_name=output_table)
-        logger.success(f"Materialized {len(clean_features_final)} clean feature rows")
+        logger.success(
+            f"Materialized {len(clean_features_final)} clean feature rows "
+            f"(out of {total_records}, filtered out {artifact_count} artifacts)"
+        )
