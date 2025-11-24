@@ -9,7 +9,6 @@ from data_quality_monitor.domain.factories.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.repositories.clickhouse_repository import (
     ClickHouseRepository,
 )
-from data_quality_monitor.domain.repository.clickhouse import ClickHouseRepositoryDomain
 
 
 logger.remove()
@@ -25,11 +24,9 @@ def test_all_rules_fail_in_reports():
     factory = ClickHouseFactory(config.clickhouse)
     repo = ClickHouseRepository(factory=factory, rule_config=config)
     repo.ensure_schema_output()
-
-    repo_domain = ClickHouseRepositoryDomain(client=repo.client, database=repo.database)
-    repo_domain.drop_table("dq.events")
-    repo_domain.drop_table("dq.reports")
-    repo_domain.drop_table("dq.test2")
+    repo.drop_table("dq.events")
+    repo.drop_table("dq.reports")
+    repo.drop_table("dq.test2")
     logger.info("✓ Dropped events and reports tables")
 
     repo.client.command(f"""

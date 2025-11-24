@@ -8,7 +8,6 @@ from data_quality_monitor.infrastructure.repositories.clickhouse_repository impo
 from data_quality_monitor.domain.factories.clickhouse import ClickHouseFactory
 from data_quality_monitor.infrastructure.config import RuleConfig
 from data_quality_monitor.application.use_cases.run_check import RunProcess
-from data_quality_monitor.domain.repository.clickhouse import ClickHouseRepositoryDomain
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 INFRA_PATH = CONFIG_DIR / "infrastructure.toml"
@@ -21,10 +20,9 @@ def test_rules_yaml_via_kafka():
     factory = ClickHouseFactory(config.clickhouse)
     repo = ClickHouseRepository(factory=factory, rule_config=config)
 
-    repo_domain = ClickHouseRepositoryDomain(client=repo.client, database=repo.database)
-    repo_domain.drop_table("dq.events")
-    repo_domain.drop_table("dq.reports")
-    repo_domain.drop_table("dq.test2")
+    repo.drop_table("dq.events")
+    repo.drop_table("dq.reports")
+    repo.drop_table("dq.test2")
     logger.info("✓ Dropped events and reports tables")
 
     repo.ensure_schema()

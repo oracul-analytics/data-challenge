@@ -1,5 +1,4 @@
 from pathlib import Path
-from dataclasses import dataclass
 from confluent_kafka.admin import AdminClient, NewTopic
 from loguru import logger
 from data_quality_monitor.infrastructure.adapters.redpanda_producer import RedpandaProducer
