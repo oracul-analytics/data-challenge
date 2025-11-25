@@ -39,6 +39,11 @@ class MaterializeFeatures:
         logger.info(f"Loaded model from {self._model_path}")
         logger.info(f"Metadata keys: {list(self._metadata.keys())}")
 
+        if "class_distribution" in self._metadata:
+            logger.info(
+                f"Training class distribution: {self._metadata['class_distribution']}"
+            )
+
     def _get_feature_names(self) -> list[str]:
         if self._metadata is None:
             self._load_model()
@@ -65,22 +70,31 @@ class MaterializeFeatures:
 
         if hasattr(self._model, "predict_proba"):
             proba = self._model.predict_proba(X)
-            # Проверяем размерность
-            if proba.ndim == 1:
-                prediction_scores = proba
-            else:
-                prediction_scores = proba[:, 1]
-            predictions = (prediction_scores >= 0.5).astype(int)
-        elif isinstance(self._model, lgb.Booster):
-            prediction_scores = self._model.predict(X)
+            prediction_scores = proba[:, 1] if proba.ndim > 1 else proba
             predictions = (prediction_scores >= 0.5).astype(int)
         else:
             raise ValueError(f"Unsupported model type: {type(self._model)}")
 
         logger.info(
-            "Prediction scores distribution:\n%s",
-            pd.Series(prediction_scores).describe(),
+            f"Prediction scores distribution:\n{pd.Series(prediction_scores).describe()}"
         )
+        logger.info(
+            f"Prediction labels distribution:\n{pd.Series(predictions).value_counts()}"
+        )
+        logger.info(
+            f"Score stats - Min: {prediction_scores.min():.4f}, "
+            f"Max: {prediction_scores.max():.4f}, "
+            f"Mean: {prediction_scores.mean():.4f}, "
+            f"Median: {pd.Series(prediction_scores).median():.4f}"
+        )
+
+        if (prediction_scores >= 0.5).all():
+            logger.warning(
+                "⚠️ ALL predictions >= 0.5! Model predicting all as artifacts."
+            )
+        if (prediction_scores < 0.5).all():
+            logger.warning("⚠️ ALL predictions < 0.5! Model predicting all as clean.")
+
         features_with_predictions = features.copy()
         features_with_predictions["prediction_label"] = predictions
         features_with_predictions["prediction_score"] = prediction_scores
@@ -108,12 +122,11 @@ class MaterializeFeatures:
         ]
         has_precomputed = all(col in raw_data.columns for col in required_features)
 
-        if has_precomputed:
-            features = raw_data[
-                ["entity_id", "event_time", "value"] + required_features
-            ].copy()
-        else:
-            features = self._registry.compute(raw_data)
+        features = (
+            raw_data[["entity_id", "event_time", "value"] + required_features].copy()
+            if has_precomputed
+            else self._registry.compute(raw_data)
+        )
 
         features_before_dropna = len(features)
         features = features.dropna(subset=required_features)
@@ -122,30 +135,38 @@ class MaterializeFeatures:
             logger.warning(
                 f"Dropped {dropped_na} rows with NULL values in required features"
             )
-
-        # features = (
-        #     features.sort_values("event_time", ascending=False)
-        #     .groupby("entity_id", as_index=False)
-        #     .first()
-        # )
-
         if features.empty:
-            logger.warning("No features left after deduplication")
+            logger.warning("No features left after preprocessing")
             return
+
+        logger.info("Feature statistics before prediction:")
+        for col in required_features:
+            logger.info(
+                f"  {col}: min={features[col].min():.4f}, max={features[col].max():.4f}, mean={features[col].mean():.4f}"
+            )
 
         features_with_predictions = self._predict_artifacts(features)
 
         total_records = len(features_with_predictions)
+        artifact_features = features_with_predictions[
+            features_with_predictions["prediction_label"] == 1
+        ]
         clean_features = features_with_predictions[
             features_with_predictions["prediction_label"] == 0
-        ].copy()
-        artifact_count = total_records - len(clean_features)
+        ]
 
-        if artifact_count > 0:
-            logger.info(f"Detected {artifact_count} artifact records")
+        logger.info(f"Total records: {total_records}")
+        logger.info(
+            f"Artifacts detected (label=1): {len(artifact_features)} ({len(artifact_features) / total_records * 100:.2f}%)"
+        )
+        logger.info(
+            f"Clean records (label=0): {len(clean_features)} ({len(clean_features) / total_records * 100:.2f}%)"
+        )
 
         if clean_features.empty:
-            logger.warning("All records classified as artifacts - nothing to write")
+            logger.warning(
+                "All records classified as artifacts (label=1) - nothing to write."
+            )
             return
 
         columns_to_write = [
@@ -157,6 +178,5 @@ class MaterializeFeatures:
 
         self._repository.write_features(clean_features_final, table_name=output_table)
         logger.success(
-            f"Materialized {len(clean_features_final)} clean feature rows "
-            f"(out of {total_records}, filtered out {artifact_count} artifacts)"
+            f"Materialized {len(clean_features_final)} clean feature rows (out of {total_records}, filtered out {len(artifact_features)} artifacts)"
         )

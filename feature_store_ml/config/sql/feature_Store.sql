@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS feature_store.events;
+
 CREATE TABLE IF NOT EXISTS feature_store.events
 (
     `timestamp`     DateTime,
@@ -14,13 +16,10 @@ PARTITION BY toYYYYMM(timestamp)
 ORDER BY (entity_id, timestamp)
 SETTINGS index_granularity = 8192;
 
-
-
-
 INSERT INTO feature_store.events
 SELECT
     now() - toIntervalSecond(number * 10) AS timestamp,
-    concat('entity_', toString(number % 800)) AS entity_id,
+    concat('entity_', toString(number % 1000)) AS entity_id,
     now() - toIntervalSecond(number * 10) AS event_time,
     randNormal(500., 100.) AS value,
     randNormal(50., 10.) AS attribute,
@@ -29,12 +28,10 @@ SELECT
     0 AS label
 FROM numbers(85000);
 
-
-
 INSERT INTO feature_store.events
 SELECT
     now() - toIntervalSecond(number * 10) AS timestamp,
-    concat('entity_', toString(800 + (number % 200))) AS entity_id,
+    concat('entity_', toString(number % 1000)) AS entity_id,
     now() - toIntervalSecond(number * 10) AS event_time,
     if((number % 2) = 0, randUniform(2000., 5000.), randUniform(1., 10.)) AS value,
     if((number % 3) = 0, randUniform(200., 500.), randUniform(0.1, 1.)) AS attribute,
@@ -108,6 +105,7 @@ CREATE TABLE feature_store.inputs
 ENGINE = MergeTree()
 ORDER BY (entity_id, event_time);
 
+
 DROP TABLE IF EXISTS feature_store.inputs;
 
 CREATE TABLE feature_store.inputs
@@ -132,20 +130,22 @@ PARTITION BY toYYYYMM(timestamp)
 ORDER BY (entity_id, event_time)
 SETTINGS index_granularity = 8192;
 
+
+
 INSERT INTO feature_store.inputs
 SELECT 
     now() - toIntervalMinute(number) AS timestamp,
-    concat('entity_', toString(number % 1600)) AS entity_id,
+    concat('entity_', toString(number % 1000)) AS entity_id,
     now() - toIntervalMinute(number * 2) AS event_time,
     randNormal(500., 100.) AS value,
     randNormal(50., 10.) AS attribute,
     'normal' AS event_type,
     concat('s_', toString(rand())) AS session_id,
-    randNormal(480., 90.) AS value_mean,
-    randUniform(50., 150.) AS value_std,
-    (number % 30) + 10 AS value_count,
-    randUniform(550., 650.) AS value_p95,
-    randNormal(48., 9.) AS attribute_mean,
+    randNormal(500., 100.) AS value_mean,
+    randNormal(100., 20.) AS value_std,
+    toUInt32((number % 30) + 10) AS value_count,
+    randNormal(650., 50.) AS value_p95,
+    randNormal(50., 10.) AS attribute_mean,
     now() AS feature_timestamp,
     now() AS materialized_at
 FROM numbers(80000);
@@ -153,10 +153,10 @@ FROM numbers(80000);
 INSERT INTO feature_store.inputs
 SELECT 
     now() - toIntervalMinute(number) AS timestamp,
-    concat('entity_', toString(1600 + number % 400)) AS entity_id,
+    concat('entity_', toString(number % 1000)) AS entity_id,
     now() - toIntervalMinute(number * 2) AS event_time,
     if((number % 2) = 0, 
-       randUniform(3000., 6000.),
+       randUniform(2000., 5000.),
        randUniform(1., 50.)
     ) AS value,
     if((number % 3) = 0, 
@@ -165,13 +165,22 @@ SELECT
     ) AS attribute,
     'artifact' AS event_type,
     concat('s_', toString(rand())) AS session_id,
-    randNormal(500., 100.) AS value_mean,
-    randUniform(300., 800.) AS value_std,
-    (number % 10) + 1 AS value_count,
-    randUniform(2000., 5000.) AS value_p95,
-    if((number % 3) = 0, 
-       randNormal(300., 80.), 
-       randNormal(1., 0.5)
+    if((number % 2) = 0,
+       randUniform(2500., 3500.),
+       randUniform(50., 200.)
+    ) AS value_mean,
+    if((number % 2) = 0,
+       randUniform(500., 1500.),
+       randUniform(10., 50.)
+    ) AS value_std,
+    toUInt32((number % 10) + 2) AS value_count,
+    if((number % 2) = 0,
+       randUniform(3000., 5000.),
+       randUniform(100., 300.)
+    ) AS value_p95,
+    if((number % 3) = 0,
+       randUniform(250., 450.),
+       randUniform(0.5., 3.)
     ) AS attribute_mean,
     now() AS feature_timestamp,
     now() AS materialized_at

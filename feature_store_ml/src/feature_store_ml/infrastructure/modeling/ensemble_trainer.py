@@ -221,6 +221,7 @@ class TrainingMetadataBuilder:
         num_train: int,
         num_test: int,
         model_type: str,
+        class_distribution: dict,
     ) -> dict:
         return {
             "auc": auc,
@@ -228,6 +229,7 @@ class TrainingMetadataBuilder:
             "num_train": num_train,
             "num_test": num_test,
             "model_type": model_type,
+            "class_distribution": class_distribution,
         }
 
 
@@ -255,6 +257,11 @@ class AdvancedEnsembleTrainer:
         X = dataset.features[FEATURE_NAMES]
         y = dataset.labels
 
+        class_counts = y.value_counts().to_dict()
+        logger.info(f"Training data class distribution: {class_counts}")
+        logger.info(f"Label 0 (clean): {class_counts.get(0, 0)} samples")
+        logger.info(f"Label 1 (artifact): {class_counts.get(1, 0)} samples")
+
         X_train, X_test, y_train, y_test = self._splitter.split(X, y)
 
         logger.info("Training XGBoost model...")
@@ -280,6 +287,7 @@ class AdvancedEnsembleTrainer:
             num_train=len(X_train),
             num_test=len(X_test),
             model_type="XGBoost+CatBoost Stacking Ensemble",
+            class_distribution=class_counts,
         )
 
         self._persistence.save_model(self._ensemble)
